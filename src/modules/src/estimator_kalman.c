@@ -224,9 +224,10 @@ NO_DMA_CCM_SAFE_ZERO_INIT static kalmanCoreData_t coreData;
 /**
  * Internal variables. Note that static declaration results in default initialization (to 0)
  */
+// [Change] 
+static bool first_vicon = true;
 
 static bool isInit = false;
-
 static Axis3f accAccumulator;
 static float thrustAccumulator;
 static Axis3f gyroAccumulator;
@@ -568,9 +569,14 @@ static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
   posvelyawMeasurement_t posvelyaw;
   while (stateEstimatorHasPosVelYawMeasurement(&posvelyaw))
   {
-      
-    kalmanCoreUpdateWithPosVelYaw(&coreData, &posvelyaw);
-    doneUpdate = true;
+    // test: do we need this part?
+    if (first_vicon){
+        coreData.resetEstimation = true;
+        first_vicon = false;
+    }else{
+        kalmanCoreUpdateWithPosVelYaw(&coreData, &posvelyaw);
+        doneUpdate = true;
+    }
   }
   // ------------------------------------------------ //
 
