@@ -63,9 +63,14 @@ const uint16_t testsound[NBR_OF_MOTORS] = {A4, A5, F5, D5};
 // customized sounds
 const uint16_t Xmas_sound1[3] = {E5, E5, E5};
 const uint16_t Xmas_sound2[5] = {E5,G5,C5,D5,E5};
-const uint16_t Xmas_sound3[4] = {F5,F5,F5,F5};
-const uint16_t Xmas_sound4[4] = {F5,E5,E5,E5};
-const uint16_t Xmas_sound5[6] = {E5,D5,D5,E5,D5,G5};
+const uint16_t Xmas_sound3[8] = {F5,F5,F5,F5, F5,E5,E5,E5};
+// const uint16_t Xmas_sound4[4] = {F5,E5,E5,E5};
+const uint16_t Xmas_sound5[6] = {E5,D5,D5,C5,D5,G5};
+
+// second part
+//EEE EEE EGCDE FFFF FEEE GGFDC
+const uint16_t Xmas_sound6[5] = {G5,G5,F5,D5,C5};
+
 static bool isInit = false;
 
 /* Private functions */
@@ -221,17 +226,18 @@ bool motorsTest(void)
 // #endif
 //     }
 //   }
-  // ------------ Customized sounds --------------- //
-    for (i = 0; i < 3; i++)
-  {
-    if (motorMap[i]->drvType == BRUSHED)
-    {
-      motorsBeep(MOTORS[i], true, Xmas_sound1[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
-      vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
-      motorsBeep(MOTORS[i], false, 0, 0);
-      vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
-      }
-  }
+  // ------------ Xmas song --------------- //
+//     for (i = 0; i < 3; i++)
+//   {
+//     if (motorMap[i]->drvType == BRUSHED)
+//     {
+//       motorsBeep(MOTORS[i], true, Xmas_sound1[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+//       vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
+//       motorsBeep(MOTORS[i], false, 0, 0);
+//       vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
+//       }
+//   }
+    vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
     vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
   for (i = 0; i < 3; i++)
   {
@@ -243,14 +249,15 @@ bool motorsTest(void)
       vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
       }
   }
-    vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
+    vTaskDelay(M2T(XMAS_SHORT_DELAY_TIME_MS));
+
     for (i = 0; i < 5; i++)
   {
       int idx = i;
       if (idx>=4){idx=idx-4;}
     if (motorMap[idx]->drvType == BRUSHED)
     {
-      motorsBeep(MOTORS[idx], true, Xmas_sound2[idx], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+      motorsBeep(MOTORS[idx], true, Xmas_sound2[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
       vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
       motorsBeep(MOTORS[idx], false, 0, 0);
       vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
@@ -258,33 +265,19 @@ bool motorsTest(void)
   }
   vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
 
-    for (i = 0; i < 4; i++)
+    for (i = 0; i < 8; i++)
   {
       int idx = i;
       if (idx>=4){idx=idx-4;}
     if (motorMap[idx]->drvType == BRUSHED)
     {
-      motorsBeep(MOTORS[idx], true, Xmas_sound3[idx], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+      motorsBeep(MOTORS[idx], true, Xmas_sound3[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
       vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
       motorsBeep(MOTORS[idx], false, 0, 0);
       vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
       }
   }
-  vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
-
-  for (i = 0; i < 4; i++)
-  {
-      int idx = i;
-      if (idx>=4){idx=idx-4;}
-    if (motorMap[idx]->drvType == BRUSHED)
-    {
-      motorsBeep(MOTORS[idx], true, Xmas_sound4[idx], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
-      vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
-      motorsBeep(MOTORS[idx], false, 0, 0);
-      vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
-      }
-  }
-  vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
+//   vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
 
     for (i = 0; i < 6; i++)
   {
@@ -292,14 +285,82 @@ bool motorsTest(void)
       if (idx>=4){idx=idx-4;}
     if (motorMap[idx]->drvType == BRUSHED)
     {
-      motorsBeep(MOTORS[idx], true, Xmas_sound5[idx], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+      motorsBeep(MOTORS[idx], true, Xmas_sound5[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+      vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
+      motorsBeep(MOTORS[idx], false, 0, 0);
+      vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
+      if (i==4){vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));}
+      }
+  }
+  vTaskDelay(M2T(XMAS_SHORT_DELAY_TIME_MS));
+
+  // second part
+    for (i = 0; i < 3; i++)
+  {
+    if (motorMap[i]->drvType == BRUSHED)
+    {
+      motorsBeep(MOTORS[i], true, Xmas_sound1[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+      vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
+      motorsBeep(MOTORS[i], false, 0, 0);
+      vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
+      }
+  }
+    vTaskDelay(M2T(XMAS_SHORT_DELAY_TIME_MS));
+
+    for (i = 0; i < 3; i++)
+  {
+    if (motorMap[i]->drvType == BRUSHED)
+    {
+      motorsBeep(MOTORS[i], true, Xmas_sound1[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+      vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
+      motorsBeep(MOTORS[i], false, 0, 0);
+      vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
+      }
+  }
+    vTaskDelay(M2T(XMAS_SHORT_DELAY_TIME_MS));  
+
+    for (i = 0; i < 5; i++)
+  {
+      int idx = i;
+      if (idx>=4){idx=idx-4;}
+    if (motorMap[idx]->drvType == BRUSHED)
+    {
+      motorsBeep(MOTORS[idx], true, Xmas_sound2[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
       vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
       motorsBeep(MOTORS[idx], false, 0, 0);
       vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
       }
   }
   vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
-  
+
+    for (i = 0; i < 8; i++)
+  {
+      int idx = i;
+      if (idx>=4){idx=idx-4;}
+    if (motorMap[idx]->drvType == BRUSHED)
+    {
+      motorsBeep(MOTORS[idx], true, Xmas_sound3[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+      vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
+      motorsBeep(MOTORS[idx], false, 0, 0);
+      vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
+      }
+  }
+  //   vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
+      for (i = 0; i < 5; i++)
+  {
+      int idx = i;
+      if (idx>=4){idx=idx-4;}
+    if (motorMap[idx]->drvType == BRUSHED)
+    {
+      motorsBeep(MOTORS[idx], true, Xmas_sound6[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+      vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
+      motorsBeep(MOTORS[idx], false, 0, 0);
+      vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
+      if (i==4){vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));}
+      }
+  }
+  vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
+
   // --------------------------------------------- // 
   return isInit;
 }
