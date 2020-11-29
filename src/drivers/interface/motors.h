@@ -127,6 +127,8 @@
 #define MOTORS_TEST_RATIO         (uint16_t)(0.2*(1<<16))
 #define MOTORS_TEST_ON_TIME_MS    50
 #define MOTORS_TEST_DELAY_TIME_MS 150
+// Xmas video
+#define XMAS_MOTORS_DELAY_TIME_MS 300
 
 // Sound defines
 #define C4    262
