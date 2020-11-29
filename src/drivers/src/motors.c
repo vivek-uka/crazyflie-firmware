@@ -227,18 +227,17 @@ bool motorsTest(void)
 //     }
 //   }
   // ------------ Xmas song --------------- //
-//     for (i = 0; i < 3; i++)
-//   {
-//     if (motorMap[i]->drvType == BRUSHED)
-//     {
-//       motorsBeep(MOTORS[i], true, Xmas_sound1[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
-//       vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
-//       motorsBeep(MOTORS[i], false, 0, 0);
-//       vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
-//       }
-//   }
-    vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
-    vTaskDelay(M2T(XMAS_MOTORS_DELAY_TIME_MS));
+    for (i = 0; i < 3; i++)
+  {
+    if (motorMap[i]->drvType == BRUSHED)
+    {
+      motorsBeep(MOTORS[i], true, Xmas_sound1[i], (uint16_t)(MOTORS_TIM_BEEP_CLK_FREQ / A4)/ 20);
+      vTaskDelay(M2T(MOTORS_TEST_ON_TIME_MS));
+      motorsBeep(MOTORS[i], false, 0, 0);
+      vTaskDelay(M2T(MOTORS_TEST_DELAY_TIME_MS));
+      }
+  }
+    vTaskDelay(M2T(XMAS_SHORT_DELAY_TIME_MS));
   for (i = 0; i < 3; i++)
   {
     if (motorMap[i]->drvType == BRUSHED)

@@ -129,7 +129,7 @@
 #define MOTORS_TEST_DELAY_TIME_MS 200
 // Xmas video
 #define XMAS_MOTORS_DELAY_TIME_MS 500
-#define XMAS_SHORT_DELAY_TIME_MS  200
+#define XMAS_SHORT_DELAY_TIME_MS  350
 
 // Sound defines
 #define C4    262
