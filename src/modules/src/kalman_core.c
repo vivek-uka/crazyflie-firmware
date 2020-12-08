@@ -70,6 +70,7 @@
 #include "lighthouse_calibration.h"
 #include "pulse_processor.h"
 
+#include "dnn.h"
 // #define DEBUG_STATE_CHECK
 
 // the reversion of pitch and roll to zero
@@ -120,7 +121,28 @@ static void assertStateNotNaN(const kalmanCoreData_t* this)
 }
 #endif
 
+// ----------------------- Flags ----------------------- //
 
+static bool enable_DNN = true; 
+// anchor quaternion
+// 1101_G1
+static float q_an[8][4] ={{-0.454,  0.536,  0.446,  0.555},  // 0
+
+                          {0.59,   0.803,  0.077,  0.048},  // 1
+
+                          {0.556,  0.45,  -0.521,  0.465},   // 2
+
+                          {-0.071, -0.123,  0.794,  0.59},  // 3
+
+                          {-0.634,  0.764, -0.108,  0.05},  // 4
+
+                          { 0.671, -0.25,  -0.651, -0.251},  // 5
+
+                          {-0.08,   0.23,   0.79,  -0.562},  // 6
+
+                          { 0.198,  0.671, -0.228,  0.677}   // 7
+                                };
+// ----------------------------------------------------- //
 // The bounds on the covariance, these shouldn't be hit, but sometimes are... why?
 #define MAX_COVARIANCE (100)
 #define MIN_COVARIANCE (1e-6f)
@@ -551,6 +573,53 @@ static void GM_state(float e, float * GM_e){
     *GM_e = (sigma * sigma)/(GM_dn * GM_dn);
 }
 
+
+static void quat2Rot(float q[4], float R[3][3]){
+    // convert quaternion to rotation matrix
+    R[0][0] = q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3];
+    R[0][1] = 2 * q[1] * q[2] - 2 * q[0] * q[3];
+    R[0][2] = 2 * q[1] * q[3] + 2 * q[0] * q[2];
+
+    R[1][0] = 2 * q[1] * q[2] + 2 * q[0] * q[3];
+    R[1][1] = q[0] * q[0] - q[1] * q[1] + q[2] * q[2] - q[3] * q[3];
+    R[1][2] = 2 * q[2] * q[3] - 2 * q[0] * q[1];
+
+    R[2][0] = 2 * q[1] * q[3] - 2 * q[0] * q[2];
+    R[2][1] = 2 * q[2] * q[3] + 2 * q[0] * q[1];
+    R[2][2] = q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3];
+}
+
+// matrix computation: v_b = C.T.dot(v)
+static void RT_v(float v[3], float C[3][3], float v_b[3]){
+    v_b[0] = C[0][0]*v[0] + C[1][0]*v[1] + C[2][0]*v[2];
+    v_b[1] = C[0][1]*v[0] + C[1][1]*v[1] + C[2][1]*v[2];
+    v_b[2] = C[0][2]*v[0] + C[1][2]*v[1] + C[2][2]*v[2];
+}
+
+static void getAzEl_Angle(float v_cf0[3], float v_cf1[3], float v_an0[3], float v_an1[3], float C_IB[3][3], 
+                          float q_IA0[4], float q_IA1[4], float AzEl[8]){
+    // AzEl[8] = {cf_Az0, cf_Ele0, cf_Az1, cf_Ele1, An_Az0, An_Ele0, An_Az1, An_Ele1}
+    float v_cf0_b[3]={0};            float v_cf1_b[3]={0};
+    RT_v(v_cf0, C_IB, v_cf0_b);
+    AzEl[0] = atan2f(v_cf0_b[1], v_cf0_b[0]) * RAD_TO_DEG;
+    AzEl[1] = asinf(v_cf0_b[2]/ (sqrtf(powf(v_cf0_b[0], 2) + powf(v_cf0_b[1], 2) + powf(v_cf0_b[2], 2))) ) * RAD_TO_DEG;
+
+    RT_v(v_cf1, C_IB, v_cf1_b);
+    AzEl[2] = atan2f(v_cf1_b[1], v_cf1_b[0]) * RAD_TO_DEG;
+    AzEl[3] = asinf(v_cf1_b[2]/ (sqrtf(powf(v_cf1_b[0], 2) + powf(v_cf1_b[1], 2) + powf(v_cf1_b[2], 2))) ) * RAD_TO_DEG;
+
+    float C_IA0[3][3] = {0};        float C_IA1[3][3] = {0};
+    quat2Rot(q_IA0, C_IA0);         quat2Rot(q_IA1, C_IA1);
+    float v_an0_b[3]={0};           float v_an1_b[3]={0};
+    RT_v(v_an0, C_IA0, v_an0_b);
+    AzEl[4] = atan2f(v_an0_b[1], v_an0_b[0]) * RAD_TO_DEG;
+    AzEl[5] = asinf(v_an0_b[2]/ (sqrtf(powf(v_an0_b[0], 2) + powf(v_an0_b[1], 2) + powf(v_an0_b[2], 2))) )* RAD_TO_DEG;
+
+    RT_v(v_an1, C_IA1, v_an1_b);
+    AzEl[6] = atan2f(v_an1_b[1], v_an1_b[0]) * RAD_TO_DEG;
+    AzEl[7] = asinf(v_an1_b[2]/ (sqrtf(powf(v_an1_b[0], 2) + powf(v_an1_b[1], 2) + powf(v_an1_b[2], 2))) )* RAD_TO_DEG;
+}
+
 // robsut update function
 void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *tdoa)
 {
@@ -577,8 +646,82 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
         
         float predicted = d1 - d0;
         // without bias compensation
-        measurement = tdoa->distanceDiff;
-        
+        if(enable_DNN){
+            // --------------------- DNN features unit test -------------------- //
+            // dx0 = 1.5;    dy0 = 0.85;   dz0 = 1.2;
+            // dx1 = 0.6;    dy1 = 1.13;   dz1 = 0.5;
+            // R[0][0] = 1.0;  R[0][1] = 0.0;  R[0][2] = 0.0;
+            // R[1][0] = 0.0;  R[1][1] = 1.0;  R[1][2] = 0.5;
+            // R[2][0] =-0.5;  R[2][1] = 0.0;  R[2][2] = 1.0;
+            // --------------------- DNN features unit test -------------------- //
+            float v_an0[3] = { dx0,  dy0,  dz0};    float v_an1[3] = { dx1,  dy1,  dz1};
+            float v_cf0[3] = {-dx0, -dy0, -dz0};    float v_cf1[3] = {-dx1, -dy1, -dz1};
+            // AzEl[8] = {cf_Az0, cf_Ele0, cf_Az1, cf_Ele1, An_Az0, An_Ele0, An_Az1, An_Ele1}
+            float AzEl[8]= {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            // index the anchor pose based on measurement ID
+            int ID[8] ={0,1,2,3,4,5,6,7};
+            float q_IA0[4] = {0}; float q_IA1[4] ={0};
+            // Initialize a dummy anchor quaternion struct     
+            // anchorPose q_an={
+            //     .anchorQuaternion = {{0}}
+            //     };   
+            // get anchor quaternion
+            // getQan(&q_an);
+            // ------------ unit test ------------ //
+            // tdoa->anchor_id = 7;
+            // ----------------------------------- //
+            
+            if (tdoa->anchor_id == 0){
+                vectorcopy(4, q_IA0, q_an[7]);
+                vectorcopy(4, q_IA1, q_an[0]);
+            }else{
+                vectorcopy(4, q_IA0, q_an[ID[tdoa->anchor_id - 1]]);
+                vectorcopy(4, q_IA1, q_an[ID[tdoa->anchor_id]]);
+            }
+            // get the Azimuth and Elevation angles: AzEl
+            getAzEl_Angle(v_cf0, v_cf1, v_an0, v_an1, this->R, q_IA0, q_IA1, AzEl); 
+            // AzEl[8] = {cf_Az0, cf_Ele0, cf_Az1, cf_Ele1, An_Az0, An_Ele0, An_Az1, An_Ele1}
+            // feature vector
+            float feature_tdoa[14] = { dx0,   dy0,   dz0,  dx1,   dy1,   dz1,
+                                       AzEl[0],  AzEl[1],  AzEl[2],  AzEl[3],
+                                       AzEl[4],  AzEl[5],  AzEl[6],  AzEl[7] };
+
+            // DNN without anchor infor.
+            // float feature_tdoa[10] = { dx0,   dy0,   dz0,  dx1,   dy1,   dz1,
+            //                            AzEl[0],  AzEl[1],  AzEl[2],  AzEl[3]};
+
+            // ---------------------- DNN unit test --> feature vector {...} ---------------------- //
+            // feature_tdoa[0] = 3.0;     feature_tdoa[1] = 2.0;    feature_tdoa[2] = 1.0;     feature_tdoa[3] = 2.0;
+            // feature_tdoa[4] = -2.0;    feature_tdoa[5] = 0.5;    feature_tdoa[6] = 120.0;   feature_tdoa[7] = 25.0;
+            // feature_tdoa[8] = 50.0;    feature_tdoa[9] = 40.0;   feature_tdoa[10] = 65.0;   feature_tdoa[11] = 28.0;
+            // feature_tdoa[12] = 25.0;   feature_tdoa[13] = 45.0;
+            // ------------------------------------------------------------------------------------ //
+
+            int feat_num = 14;
+            // -------------- normal DNN -------------//
+            float uwb_feature_max_tdoa[14]={0};    float uwb_feature_min_tdoa[14] ={0};
+            // ------------- DNN without anchor infor. ------------- //
+            // float uwb_feature_max_tdoa[10]={0};    float uwb_feature_min_tdoa[10] ={0};
+
+            float uwb_err_max_tdoa = 0;            float uwb_err_min_tdoa = 0;
+            getErrMax(&uwb_err_max_tdoa);          getErrMin(&uwb_err_min_tdoa);
+            getFeatureMax(uwb_feature_max_tdoa);   getFeatureMin(uwb_feature_min_tdoa);
+            // ----------------------------------------------------------------------- //
+            for(int idx=0; idx<feat_num ; idx++){
+			  feature_tdoa[idx] = scaler_normalize(feature_tdoa[idx], uwb_feature_min_tdoa[idx], uwb_feature_max_tdoa[idx]);
+		    }
+            // DNN inference
+            float bias = nn_inference(feature_tdoa, feat_num);
+            // denormalization
+            float Bias = scaler_denormalize(bias, uwb_err_min_tdoa, uwb_err_max_tdoa);
+ 
+            // debug setting
+            // Bias = 0.0f;
+            // measurements after bias compensation
+            measurement = tdoa->distanceDiff + Bias;
+        }else{
+            measurement = tdoa->distanceDiff;
+        }
         // innovation term based on x_check
         float error_check = measurement - predicted;    // error_check
 
