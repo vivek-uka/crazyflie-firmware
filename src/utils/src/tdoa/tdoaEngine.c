@@ -70,12 +70,14 @@ static uint64_t truncateToAnchorTimeStamp(uint64_t fullTimeStamp) {
   return fullTimeStamp & TRUNCATE_TO_ANCHOR_TS_BITMAP;
 }
 
+// [change] we need to keep track of anchor ID (anchor ID = anchorBCtx->anchorInfo->id)
 static void enqueueTDOA(const tdoaAnchorContext_t* anchorACtx, const tdoaAnchorContext_t* anchorBCtx, double distanceDiff, tdoaEngineState_t* engineState) {
   tdoaStats_t* stats = &engineState->stats;
 
   tdoaMeasurement_t tdoa = {
     .stdDev = MEASUREMENT_NOISE_STD,
-    .distanceDiff = distanceDiff
+    .distanceDiff = distanceDiff,
+    .anchor_id = anchorBCtx->anchorInfo->id,   // [Change] Give an id to the TDOA measurement
   };
 
   if (tdoaStorageGetAnchorPosition(anchorACtx, &tdoa.anchorPosition[0]) && tdoaStorageGetAnchorPosition(anchorBCtx, &tdoa.anchorPosition[1])) {
