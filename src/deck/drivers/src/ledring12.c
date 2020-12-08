@@ -139,7 +139,7 @@ typedef void (*Ledring12Effect)(uint8_t buffer[][3], bool reset);
   dest[2] = ((uint16_t)B5 * 527 + 23) >> 6;
 
 #ifndef LEDRING_DEFAULT_EFFECT
-#define LEDRING_DEFAULT_EFFECT 6
+#define LEDRING_DEFAULT_EFFECT 7
 #endif
 
 #define LEDRING_TIME_MEM_SEC 1000 / 25
