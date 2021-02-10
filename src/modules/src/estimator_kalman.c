@@ -85,6 +85,8 @@
 #include "mm_tof.h"
 #include "mm_yaw_error.h"
 #include "mm_sweep_angles.h"
+// [CHANGE]
+#include "mm_tdoa_robust.h"
 
 #define DEBUG_MODULE "ESTKALMAN"
 #include "debug.h"
@@ -208,7 +210,9 @@ static StaticSemaphore_t dataMutexBuffer;
 #define MAX_COVARIANCE (100)
 #define MIN_COVARIANCE (1e-6f)
 
-
+// ----- [CHANGE] configuration ----- //
+static bool ROBUST = true; 
+// ---------------------------------- //
 
 /**
  * Quadrocopter State
@@ -571,7 +575,14 @@ static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
   tdoaMeasurement_t tdoa;
   while (stateEstimatorHasTDOAPacket(&tdoa))
   {
-    kalmanCoreUpdateWithTDOA(&coreData, &tdoa);
+    // [CHANGE]
+    if(ROBUST){
+    // robust KF update
+        kalmanCoreRobustUpdateWithTDOA(&coreData, &tdoa);
+    }else{
+    // standard KF update
+        kalmanCoreUpdateWithTDOA(&coreData, &tdoa);
+    }
     doneUpdate = true;
   }
 
