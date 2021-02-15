@@ -274,6 +274,54 @@ void kalmanCoreScalarUpdate(kalmanCoreData_t* this, arm_matrix_instance_f32 *Hm,
   assertStateNotNaN(this);
 }
 
+// [CHANGE]
+void kalmanCoreUpdateWithPKR(kalmanCoreData_t* this, arm_matrix_instance_f32 *Hm, arm_matrix_instance_f32 *Km, float error, float R)
+{
+    // kalman filter update with prior covariance matrix P, kalman gain Kk, and measurement nosie R 
+    // Temporary matrices for the covariance updates
+    NO_DMA_CCM_SAFE_ZERO_INIT __attribute__((aligned(4))) static float tmpNN1d[KC_STATE_DIM * KC_STATE_DIM];
+    static arm_matrix_instance_f32 tmpNN1m = {KC_STATE_DIM, KC_STATE_DIM, tmpNN1d};
+
+    NO_DMA_CCM_SAFE_ZERO_INIT __attribute__((aligned(4))) static float tmpNN2d[KC_STATE_DIM * KC_STATE_DIM];
+    static arm_matrix_instance_f32 tmpNN2m = {KC_STATE_DIM, KC_STATE_DIM, tmpNN2d};
+
+    NO_DMA_CCM_SAFE_ZERO_INIT __attribute__((aligned(4))) static float tmpNN3d[KC_STATE_DIM * KC_STATE_DIM];
+    static arm_matrix_instance_f32 tmpNN3m = {KC_STATE_DIM, KC_STATE_DIM, tmpNN3d};
+
+    // ====== STATE UPDATE ======
+    // update the states with Kalman Gain and innovation error
+    for (int i=0; i<KC_STATE_DIM; i++){
+        this->S[i] = this->S[i] + Km->pData[i] * error;   
+    }
+    assertStateNotNaN(this);
+    // ====== COVARIANCE UPDATE ======
+    mat_mult(Km, Hm, &tmpNN1m); // KH
+    for (int i=0; i<KC_STATE_DIM; i++) { tmpNN1d[KC_STATE_DIM*i+i] -= 1; } // KH - I
+    mat_trans(&tmpNN1m, &tmpNN2m); // (KH - I)'
+    mat_mult(&tmpNN1m, &this->Pm, &tmpNN3m); // (KH - I)*P
+    mat_mult(&tmpNN3m, &tmpNN2m, &this->Pm); // (KH - I)*P*(KH - I)'
+    assertStateNotNaN(this);
+    // add the measurement variance and ensure boundedness and symmetry
+    // TODO: Why would it hit these bounds? Needs to be investigated.
+    for (int i=0; i<KC_STATE_DIM; i++) {
+        for (int j=i; j<KC_STATE_DIM; j++) {
+        float v = Km->pData[i] * R * Km->pData[i];
+        float p = 0.5f*this->P[i][j] + 0.5f*this->P[j][i] + v; // add measurement noise
+        if (isnan(p) || p > MAX_COVARIANCE) {
+            this->P[i][j] = this->P[j][i] = MAX_COVARIANCE;
+        } else if ( i==j && p < MIN_COVARIANCE ) {
+            this->P[i][j] = this->P[j][i] = MIN_COVARIANCE;
+        } else {
+            this->P[i][j] = this->P[j][i] = p;
+        }
+        }
+    }
+
+    assertStateNotNaN(this);
+}
+
+
+
 
 void kalmanCoreUpdateWithBaro(kalmanCoreData_t* this, float baroAsl, bool quadIsFlying)
 {

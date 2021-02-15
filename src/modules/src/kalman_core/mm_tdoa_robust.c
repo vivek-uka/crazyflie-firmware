@@ -2,18 +2,12 @@
 
 #include "mm_tdoa_robust.h"
 #include "test_support.h"
+     
 
-// The bounds on the covariance, these shouldn't be hit, but sometimes are... why?
-#define MAX_COVARIANCE (100)
-#define MIN_COVARIANCE (1e-6f)
-
-// The assert is not used now
-static void assertStateNotNaN(const kalmanCoreData_t* this)
-{
-  return;
-}
+#define MAX_ITER (2) // maximum iteration is set to 2. 
 
 // Cholesky Decomposition for a nxn psd matrix(from scratch)
+// Reference: https://www.geeksforgeeks.org/cholesky-decomposition-matrix-decomposition/
 static void Cholesky_Decomposition(int n, float matrix[n][n],  float lower[n][n]){
     // Decomposing a matrix into Lower Triangular 
     for (int i = 0; i < n; i++) { 
@@ -69,7 +63,7 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
 
     float d1 = sqrtf(powf(dx1, 2) + powf(dy1, 2) + powf(dz1, 2));
     float d0 = sqrtf(powf(dx0, 2) + powf(dy0, 2) + powf(dz0, 2));
-    // if measurements make sense and enable UWB
+    // if measurements make sense 
     if ((d0 != 0.0f) && (d1 != 0.0f)) {
         
         float predicted = d1 - d0;
@@ -88,55 +82,45 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
         // P[3][3] = 0.1f;  P[4][4] = 0.1f;  P[5][5] = 0.1f;
         // P[6][6] = 0.1f;  P[7][7] = 0.1f;  P[8][8] = 0.1f;
         // ---------------------- matrix defination ----------------------------- //
-            static float P_chol[KC_STATE_DIM][KC_STATE_DIM]; 
-            static arm_matrix_instance_f32 Pc_m = {KC_STATE_DIM, KC_STATE_DIM, (float *)P_chol};
-            // Pc.T
-            static float Pc_tran[KC_STATE_DIM][KC_STATE_DIM];
-            static arm_matrix_instance_f32 Pc_tran_m = {KC_STATE_DIM, KC_STATE_DIM, (float *)Pc_tran};
+        static float P_chol[KC_STATE_DIM][KC_STATE_DIM]; 
+        static arm_matrix_instance_f32 Pc_m = {KC_STATE_DIM, KC_STATE_DIM, (float *)P_chol};
+        // Pc.T
+        static float Pc_tran[KC_STATE_DIM][KC_STATE_DIM];
+        static arm_matrix_instance_f32 Pc_tran_m = {KC_STATE_DIM, KC_STATE_DIM, (float *)Pc_tran};
 
-            float h[KC_STATE_DIM] = {0};
-            arm_matrix_instance_f32 H = {1, KC_STATE_DIM, h};    // H is a row vector
+        float h[KC_STATE_DIM] = {0};
+        arm_matrix_instance_f32 H = {1, KC_STATE_DIM, h};    // H is a row vector
 
-            static float Kw[KC_STATE_DIM];           // The Kalman gain as a column vector
-            static arm_matrix_instance_f32 Kwm = {KC_STATE_DIM, 1, (float *)Kw};
+        static float Kw[KC_STATE_DIM];           // The Kalman gain as a column vector
+        static arm_matrix_instance_f32 Kwm = {KC_STATE_DIM, 1, (float *)Kw};
 
-            // float error_x[STATE_DIM]={0}; // is not useful
-            // arm_matrix_instance_f32 error_x_mat = {STATE_DIM, 1, error_x};
-            
-            static float e_x[KC_STATE_DIM];
-            static arm_matrix_instance_f32 e_x_m = {KC_STATE_DIM, 1, e_x};
-            
-            static float Pc_inv[KC_STATE_DIM][KC_STATE_DIM];
-            static arm_matrix_instance_f32 Pc_inv_m = {KC_STATE_DIM, KC_STATE_DIM, (float *)Pc_inv};
-            
-            // rescale matrix
-            static float wx_inv[KC_STATE_DIM][KC_STATE_DIM];
-            static arm_matrix_instance_f32 wx_invm = {KC_STATE_DIM, KC_STATE_DIM, (float *)wx_inv};
-            // tmp matrix for P_chol inverse
-            static float tmp1[KC_STATE_DIM][KC_STATE_DIM];
-            static arm_matrix_instance_f32 tmp1m = {KC_STATE_DIM, KC_STATE_DIM, (float *)tmp1};
+        // float error_x[STATE_DIM]={0}; // is not useful
+        // arm_matrix_instance_f32 error_x_mat = {STATE_DIM, 1, error_x};
+        
+        static float e_x[KC_STATE_DIM];
+        static arm_matrix_instance_f32 e_x_m = {KC_STATE_DIM, 1, e_x};
+        
+        static float Pc_inv[KC_STATE_DIM][KC_STATE_DIM];
+        static arm_matrix_instance_f32 Pc_inv_m = {KC_STATE_DIM, KC_STATE_DIM, (float *)Pc_inv};
+        
+        // rescale matrix
+        static float wx_inv[KC_STATE_DIM][KC_STATE_DIM];
+        static arm_matrix_instance_f32 wx_invm = {KC_STATE_DIM, KC_STATE_DIM, (float *)wx_inv};
+        // tmp matrix for P_chol inverse
+        static float tmp1[KC_STATE_DIM][KC_STATE_DIM];
+        static arm_matrix_instance_f32 tmp1m = {KC_STATE_DIM, KC_STATE_DIM, (float *)tmp1};
 
-            static float Pc_w_inv[KC_STATE_DIM][KC_STATE_DIM];
-            static arm_matrix_instance_f32 Pc_w_invm = {KC_STATE_DIM, KC_STATE_DIM, (float *)Pc_w_inv};
+        static float Pc_w_inv[KC_STATE_DIM][KC_STATE_DIM];
+        static arm_matrix_instance_f32 Pc_w_invm = {KC_STATE_DIM, KC_STATE_DIM, (float *)Pc_w_inv};
 
-            static float P_w[KC_STATE_DIM][KC_STATE_DIM];
-            static arm_matrix_instance_f32 P_w_m = {KC_STATE_DIM, KC_STATE_DIM, (float *)P_w};
+        static float P_w[KC_STATE_DIM][KC_STATE_DIM];
+        static arm_matrix_instance_f32 P_w_m = {KC_STATE_DIM, KC_STATE_DIM, (float *)P_w};
 
-            // Temporary matrices for the covariance updates (one way to walk around)
-            static float tmpNN1d[KC_STATE_DIM][KC_STATE_DIM];
-            static arm_matrix_instance_f32 tmpNN1m = {KC_STATE_DIM, KC_STATE_DIM, (float *)tmpNN1d};
+        static float HTd[KC_STATE_DIM];
+        static arm_matrix_instance_f32 HTm = {KC_STATE_DIM, 1, HTd};
 
-            // static float tmpNN2d[STATE_DIM * STATE_DIM];
-            // static arm_matrix_instance_f32 tmpNN2m = {STATE_DIM, STATE_DIM, tmpNN2d};
-
-            // static float tmpNN3d[STATE_DIM * STATE_DIM];
-            // static arm_matrix_instance_f32 tmpNN3m = {STATE_DIM, STATE_DIM, tmpNN3d};
-
-            static float HTd[KC_STATE_DIM];
-            static arm_matrix_instance_f32 HTm = {KC_STATE_DIM, 1, HTd};
-
-            static float PHTd[KC_STATE_DIM];
-            static arm_matrix_instance_f32 PHTm = {KC_STATE_DIM, 1, PHTd};
+        static float PHTd[KC_STATE_DIM];
+        static arm_matrix_instance_f32 PHTm = {KC_STATE_DIM, 1, PHTd};
         // ------------------- Some initialization -----------------------//
         // float xpr[STATE_DIM] = {0.0};                // x prior (error state), set to be zeros 
         static float x_err[KC_STATE_DIM] = {0.0};          // x_err comes from the KF update is the state of error state Kalman filter, set to be zero initially
@@ -148,11 +132,8 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
         float Q_iter = tdoa->stdDev * tdoa->stdDev;
         vectorcopy(KC_STATE_DIM, X_state, this->S);             // copy Xpr to X_State and then update in each iterations
 
-        // --------------------------------- Start iteration --------------------------------- //
-        // maximum iteration is 4. Setting iter to 5 leads to a problem of timer.c
-        // consider the execution time of DNN, set iter to 3
-        // matrix definations are not in the loop
-        for (int iter = 0; iter < 2; iter++){
+        // ---------------------- Start iteration ----------------------- //
+        for (int iter = 0; iter < MAX_ITER; iter++){
             // apply cholesky decomposition for the prior covariance matrix 
             Cholesky_Decomposition(KC_STATE_DIM, P_iter, P_chol);               // P_chol is a lower triangular matrix
             mat_trans(&Pc_m, &Pc_tran_m);
@@ -190,8 +171,9 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
                 if (fabsf(Q_chol - 0.0f) < 0.0001f){
                     e_y = error_iter / 0.0001f;
                 }
-                else{
-                    e_y = error_iter / Q_chol;}
+                else{ 
+                    e_y = error_iter / Q_chol;
+                }
                 // e_x = inv(Ppr_c) * (error_x), here error_x = x_err
                 // Problem: after deon mat_inv, Pc matrix becomes eye(9) !!!
                 // Reason: arm_mat_inverse_f32() overwrites the source matrix !!!
@@ -235,11 +217,10 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
                 mat_trans(&H, &HTm);
                 mat_mult(&P_w_m, &HTm, &PHTm);     // PHTm = P_w.dot(H.T). The P is the updated P_w 
 
-                float HPHR = Q_w;                  // HPH' + R.            The Q(R) is the updated Q_w 
+                float HPHR = Q_w;                  // HPH' + Q.            The Q is the updated Q_w 
                 for (int i=0; i<KC_STATE_DIM; i++) {  // Add the element of HPH' to the above
                     HPHR += h[i]*PHTd[i];          // this obviously only works if the update is scalar (as in this function)
                 }
-                assertStateNotNaN(this);
 
                 // ====== MEASUREMENT UPDATE ======
                 // Calculate the Kalman gain and perform the state update
@@ -252,7 +233,6 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
                 // update P_iter matrix and Q matrix for next iteration
                 matrixcopy(KC_STATE_DIM, KC_STATE_DIM, P_iter, P_w);
                 Q_iter = Q_w;
-                assertStateNotNaN(this);
             }
         }
 
@@ -260,49 +240,9 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
         // P = P_iter =P_w, arm matrix: Pm = P_w_m
         // Q = Q_iter = Q_w
 
-        for (int i=0; i<KC_STATE_DIM; i++){
-            this->S[i] = this->S[i] + Kw[i] * error_check;
-        }
-        
-        // ====== COVARIANCE UPDATE ======
-        mat_mult(&Kwm, &H, &tmpNN1m);               // KH,  the Kalman Gain and H are the updated Kalman Gain and H 
-        // ---------- method 1 ---------- //
-        //  I-KH
-        mat_scale(&tmpNN1m, -1.0f, &tmpNN1m);
-        for (int i=0; i<KC_STATE_DIM; i++) { tmpNN1d[i][i] = 1.0f + tmpNN1d[i][i]; } 
-        // the last step matrix multiplication does not work! 
-        // mat_mult(&tmpNN1m, &P_w_m, &Pm); (tmpNN1m and P_w_m are both correct)
-        // ---------- One way to walk around ---------- //
-        float Ppo[KC_STATE_DIM][KC_STATE_DIM]={0};
-        arm_matrix_instance_f32 Ppom = {KC_STATE_DIM, KC_STATE_DIM, (float *)Ppo};
-        mat_mult(&tmpNN1m, &P_w_m, &Ppom);      // Pm = (I-KH)*P_w_m
-        matrixcopy(KC_STATE_DIM, KC_STATE_DIM, this->P, Ppo);
-        // -------- method2 ---------//
-        // for (int i=0; i<STATE_DIM; i++) { tmpNN1d[STATE_DIM*i+i] -= 1; } // KH - I
-        // mat_trans(&tmpNN1m, &tmpNN2m); // (KH - I)'
-        // mat_mult(&tmpNN1m, &P_w_m, &tmpNN3m); // (KH - I)*Pw
-        
-        // float Ppo[STATE_DIM][STATE_DIM]={0};
-        // arm_matrix_instance_f32 Ppom = {STATE_DIM, STATE_DIM, (float *)Ppo};
-        // mat_mult(&tmpNN3m, &tmpNN2m, &Ppom); // Ppo = (KH - I)*Pw*(KH - I)'
-        // matrixcopy(9,9, P, Ppo);
-        assertStateNotNaN(this);
-        // add the measurement variance and ensure boundedness and symmetry
-        // TODO: Why would it hit these bounds? Needs to be investigated.
-        for (int i=0; i<KC_STATE_DIM; i++) {
-            for (int j=i; j<KC_STATE_DIM; j++) {
-            // float v = Kw[i] * Q_iter * Kw[j];
-            float p = 0.5f*this->P[i][j] + 0.5f*this->P[j][i];// + v; // add measurement noise
-            if (isnan(p) || p > MAX_COVARIANCE) {
-                this->P[i][j] = this->P[j][i] = MAX_COVARIANCE;
-            } else if ( i==j && p < MIN_COVARIANCE ) {
-                this->P[i][j] = this->P[j][i] = MIN_COVARIANCE;
-            } else {
-                this->P[i][j] = this->P[j][i] = p;
-                }
-            }
-        }
-        assertStateNotNaN(this);
+        // Call the kalman update function with P,K and R=Q_iter
+        kalmanCoreUpdateWithPKR(this, &HTm, &Kwm, error_check, Q_iter);
+
     } 
   }
   tdoaCount++;
