@@ -87,6 +87,7 @@
 #include "mm_sweep_angles.h"
 // [CHANGE]
 #include "mm_tdoa_robust.h"
+#include "mm_distance_robust.h"
 
 #define DEBUG_MODULE "ESTKALMAN"
 #include "debug.h"
@@ -554,7 +555,14 @@ static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
   distanceMeasurement_t dist;
   while (stateEstimatorHasDistanceMeasurement(&dist))
   {
-    kalmanCoreUpdateWithDistance(&coreData, &dist);
+    // [CHANGE]
+    if(ROBUST){
+        // robust KF update with distance measurements
+        kalmanCoreRobustUpdateWithDistance(&coreData, &dist);
+    }else{
+        // standard KF update
+        kalmanCoreUpdateWithDistance(&coreData, &dist);
+    }
     doneUpdate = true;
   }
 
@@ -577,10 +585,10 @@ static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
   {
     // [CHANGE]
     if(ROBUST){
-    // robust KF update
+        // robust KF update with TDOA measurements   
         kalmanCoreRobustUpdateWithTDOA(&coreData, &tdoa);
     }else{
-    // standard KF update
+        // standard KF update
         kalmanCoreUpdateWithTDOA(&coreData, &tdoa);
     }
     doneUpdate = true;
