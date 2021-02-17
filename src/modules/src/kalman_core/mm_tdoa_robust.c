@@ -62,6 +62,7 @@ static void GM_state(float e, float * GM_e){
     *GM_e = (sigma * sigma)/(GM_dn * GM_dn);
 }
 
+
 TESTABLE_STATIC uint32_t tdoaCount = 0;
 // robsut update function
 void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *tdoa)
