@@ -555,14 +555,14 @@ static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
   distanceMeasurement_t dist;
   while (stateEstimatorHasDistanceMeasurement(&dist))
   {
-    // [CHANGE]
-    if(ROBUST){
-        // robust KF update with distance measurements
-        kalmanCoreRobustUpdateWithDistance(&coreData, &dist);
-    }else{
+    // // [CHANGE]
+    // if(ROBUST){
+    //     // robust KF update with distance measurements
+    //     kalmanCoreRobustUpdateWithDistance(&coreData, &dist);
+    // }else{
         // standard KF update
         kalmanCoreUpdateWithDistance(&coreData, &dist);
-    }
+    // }
     doneUpdate = true;
   }
 
