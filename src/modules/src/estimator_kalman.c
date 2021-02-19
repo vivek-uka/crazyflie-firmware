@@ -86,6 +86,8 @@
 #include "mm_yaw_error.h"
 #include "mm_sweep_angles.h"
 
+#include "mm_distance_robust.h"
+
 #define DEBUG_MODULE "ESTKALMAN"
 #include "debug.h"
 
@@ -208,7 +210,7 @@ static StaticSemaphore_t dataMutexBuffer;
 #define MAX_COVARIANCE (100)
 #define MIN_COVARIANCE (1e-6f)
 
-
+static bool ROBUST = true; 
 
 /**
  * Quadrocopter State
@@ -550,7 +552,13 @@ static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
   distanceMeasurement_t dist;
   while (stateEstimatorHasDistanceMeasurement(&dist))
   {
-    kalmanCoreUpdateWithDistance(&coreData, &dist);
+    if(ROBUST){
+        // robust KF update with distance measurements
+        kalmanCoreRobustUpdateWithDistance(&coreData, &dist);
+    }else{
+        // standard KF update
+        kalmanCoreUpdateWithDistance(&coreData, &dist);
+    }
     doneUpdate = true;
   }
 
