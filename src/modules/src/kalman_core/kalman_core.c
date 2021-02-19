@@ -275,52 +275,93 @@ void kalmanCoreScalarUpdate(kalmanCoreData_t* this, arm_matrix_instance_f32 *Hm,
 }
 
 // [CHANGE]
-void kalmanCoreUpdateWithPKR(kalmanCoreData_t* this, arm_matrix_instance_f32 *Hm, arm_matrix_instance_f32 *Km, float error, float R)
+void kalmanCoreUpdateWithPKE(kalmanCoreData_t* this, arm_matrix_instance_f32 *Hm, arm_matrix_instance_f32 *Km, arm_matrix_instance_f32 *P_w_m, float error)
 {
-    // kalman filter update with prior covariance matrix P, kalman gain Kk, and measurement nosie R 
-    // Temporary matrices for the covariance updates
-    NO_DMA_CCM_SAFE_ZERO_INIT __attribute__((aligned(4))) static float tmpNN1d[KC_STATE_DIM * KC_STATE_DIM];
-    static arm_matrix_instance_f32 tmpNN1m = {KC_STATE_DIM, KC_STATE_DIM, tmpNN1d};
-
-    NO_DMA_CCM_SAFE_ZERO_INIT __attribute__((aligned(4))) static float tmpNN2d[KC_STATE_DIM * KC_STATE_DIM];
-    static arm_matrix_instance_f32 tmpNN2m = {KC_STATE_DIM, KC_STATE_DIM, tmpNN2d};
-
-    NO_DMA_CCM_SAFE_ZERO_INIT __attribute__((aligned(4))) static float tmpNN3d[KC_STATE_DIM * KC_STATE_DIM];
-    static arm_matrix_instance_f32 tmpNN3m = {KC_STATE_DIM, KC_STATE_DIM, tmpNN3d};
-
-    // ====== STATE UPDATE ======
-    // update the states with Kalman Gain and innovation error
+    // kalman filter update with weighted covariance matrix P_w_m, kalman gain Km, and innovation error 
+    // Temporary matrices for the covariance updates 
+    static float tmpNN1d[KC_STATE_DIM][KC_STATE_DIM];
+    static arm_matrix_instance_f32 tmpNN1m = {KC_STATE_DIM, KC_STATE_DIM, (float *)tmpNN1d};
     for (int i=0; i<KC_STATE_DIM; i++){
-        this->S[i] = this->S[i] + Km->pData[i] * error;   
+        this->S[i] = this->S[i] + Km->pData[i] * error;
     }
-    assertStateNotNaN(this);
     // ====== COVARIANCE UPDATE ======
-    mat_mult(Km, Hm, &tmpNN1m); // KH
-    for (int i=0; i<KC_STATE_DIM; i++) { tmpNN1d[KC_STATE_DIM*i+i] -= 1; } // KH - I
-    mat_trans(&tmpNN1m, &tmpNN2m); // (KH - I)'
-    mat_mult(&tmpNN1m, &this->Pm, &tmpNN3m); // (KH - I)*P
-    mat_mult(&tmpNN3m, &tmpNN2m, &this->Pm); // (KH - I)*P*(KH - I)'
+    mat_mult(Km, Hm, &tmpNN1m);               // KH,  the Kalman Gain and H are the updated Kalman Gain and H 
+    // ---------- method 1 ---------- //
+    //  I-KH
+    mat_scale(&tmpNN1m, -1.0f, &tmpNN1m);
+    for (int i=0; i<KC_STATE_DIM; i++) { tmpNN1d[i][i] = 1.0f + tmpNN1d[i][i]; } 
+    float Ppo[KC_STATE_DIM][KC_STATE_DIM]={0};
+    arm_matrix_instance_f32 Ppom = {KC_STATE_DIM, KC_STATE_DIM, (float *)Ppo};
+    mat_mult(&tmpNN1m, P_w_m, &Ppom);      // Pm = (I-KH)*P_w_m
+    matrixcopy(KC_STATE_DIM, KC_STATE_DIM, this->P, Ppo);
+
     assertStateNotNaN(this);
-    // add the measurement variance and ensure boundedness and symmetry
-    // TODO: Why would it hit these bounds? Needs to be investigated.
+
     for (int i=0; i<KC_STATE_DIM; i++) {
         for (int j=i; j<KC_STATE_DIM; j++) {
-        float v = Km->pData[i] * R * Km->pData[i];
-        float p = 0.5f*this->P[i][j] + 0.5f*this->P[j][i] + v; // add measurement noise
+        float p = 0.5f*this->P[i][j] + 0.5f*this->P[j][i];
         if (isnan(p) || p > MAX_COVARIANCE) {
             this->P[i][j] = this->P[j][i] = MAX_COVARIANCE;
         } else if ( i==j && p < MIN_COVARIANCE ) {
             this->P[i][j] = this->P[j][i] = MIN_COVARIANCE;
         } else {
             this->P[i][j] = this->P[j][i] = p;
-        }
+            }
         }
     }
-
     assertStateNotNaN(this);
+
 }
 
 
+//[Change] Add Vicon measurements
+void kalmanCoreUpdateWithPosVelYaw(kalmanCoreData_t* this, posvelyawMeasurement_t *posvelyaw)
+{
+	  // a direct measurement of states x, y, and z
+	  // do a scalar update for each state, since this should be faster than updating all together
+	  for (int i=0; i<3; i++) {
+	    float h[KC_STATE_DIM] = {0};
+	    arm_matrix_instance_f32 H = {1, KC_STATE_DIM, h};
+	    h[KC_STATE_X+i] = 1;
+	    kalmanCoreScalarUpdate(this, &H, posvelyaw->pos[i] - this->S[KC_STATE_X+i], posvelyaw->stdDev_pos);
+	  }
+
+	  // Measurement model of velocity as measured in world frame
+	  // v_w = R(P + omega^x x)
+	  for (int i=0; i<3; i++) {
+	    float h[KC_STATE_DIM] = {0};
+	    arm_matrix_instance_f32 H = {1, KC_STATE_DIM, h};
+
+	    h[KC_STATE_PX] = this->R[i][0];
+	    h[KC_STATE_PY] = this->R[i][1];
+	    h[KC_STATE_PZ] = this->R[i][2];
+	    float pred_vel_w = this->R[i][0] * this->S[KC_STATE_PX] + this->R[i][1] * this->S[KC_STATE_PY] + this->R[i][2] * this->S[KC_STATE_PZ];
+
+	    kalmanCoreScalarUpdate(this, &H, posvelyaw->vel[i] - pred_vel_w, posvelyaw->stdDev_vel);
+	  }
+
+	  // direct measurement of yaw (yaw error STATE_D2)
+	  float h[KC_STATE_DIM] = {0};
+	  arm_matrix_instance_f32 H = {1, KC_STATE_DIM, h};
+	  h[KC_STATE_D2] = 1; // the Jacobian
+	  float pred_yaw = atan2f(2*(this->q[1]*this->q[2]+this->q[0]*this->q[3]) , this->q[0]*this->q[0] + this->q[1]*this->q[1] - this->q[2]*this->q[2] - this->q[3]*this->q[3]);
+	  float yaw_error = posvelyaw->yaw - pred_yaw;
+
+	  // wrap yaw_error between (-PI, PI]
+	  while (yaw_error > PI){
+		  yaw_error -= (float) 2.0 * PI;
+	  }
+
+	  while (yaw_error <= -PI){
+		  yaw_error += (float) 2.0 * PI;
+	  }
+
+	  // Add yaw measurement to Kalman filter if yaw estimate is valid (i.e., in (-PI, PI])
+	  if ((posvelyaw->yaw > -PI) && (posvelyaw->yaw <= PI)){
+		  kalmanCoreScalarUpdate(this, &H, yaw_error, posvelyaw->stdDev_yaw);
+	  }
+}
+// ------------------------------------------------------------------------------------------------ //
 
 
 void kalmanCoreUpdateWithBaro(kalmanCoreData_t* this, float baroAsl, bool quadIsFlying)

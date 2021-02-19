@@ -30,7 +30,13 @@
 #include "queue.h"
 
 #include "commander.h"
+// #include "crtp_commander.h"
+#ifdef BROADCAST_ENABLE
+#include "crtp_broadcast_service.h"
+#else
 #include "crtp_commander.h"
+#endif
+
 #include "crtp_commander_high_level.h"
 
 #include "cf_math.h"
@@ -62,8 +68,18 @@ void commanderInit(void)
   ASSERT(priorityQueue);
   xQueueSend(priorityQueue, &priorityDisable, 0);
 
-  crtpCommanderInit();
-  crtpCommanderHighLevelInit();
+//   crtpCommanderInit();
+//   crtpCommanderHighLevelInit();
+
+    // [CHANGE]
+  #ifdef BROADCAST_ENABLE
+    bcCmdInit();
+  #else
+    crtpCommanderInit();
+  #endif
+    crtpCommanderHighLevelInit();
+
+
   lastUpdate = xTaskGetTickCount();
 
   isInit = true;

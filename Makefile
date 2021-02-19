@@ -28,6 +28,7 @@ LPS_TDMA_ENABLE   ?= 0
 LPS_TDOA_ENABLE   ?= 0
 LPS_TDOA3_ENABLE  ?= 0
 
+BROADCAST_ENABLE  ?= 1    # [CHANGE]
 
 # Platform configuration handling
 -include current_platform.mk
@@ -173,6 +174,13 @@ PROJ_OBJ += range.o app_handler.o static_mem.o app_channel.o
 # Stabilizer modules
 PROJ_OBJ += commander.o crtp_commander.o crtp_commander_rpyt.o
 PROJ_OBJ += crtp_commander_generic.o crtp_localization_service.o peer_localization.o
+
+# [CHANGE]
+ifeq ($(BROADCAST_ENABLE), 1)
+PROJ_OBJ += crtp_broadcast_service.o
+CFLAGS += -DBROADCAST_ENABLE
+endif
+
 PROJ_OBJ += attitude_pid_controller.o sensfusion6.o stabilizer.o
 PROJ_OBJ += position_estimator_altitude.o position_controller_pid.o position_controller_indi.o
 PROJ_OBJ += estimator.o estimator_complementary.o
@@ -315,7 +323,7 @@ else
   CFLAGS += -Os
 
   # Fail on warnings
-  CFLAGS += -Werror
+#   CFLAGS += -Werror
 endif
 
 # Disable warnings for unaligned addresses in packed structs (added in GCC 9)
