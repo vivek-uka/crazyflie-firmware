@@ -223,7 +223,7 @@ static StaticSemaphore_t dataMutexBuffer;
 #define MIN_COVARIANCE (1e-6f)
 
 // ----- [CHANGE] configuration ----- //
-static bool ROBUST = true; 
+static bool ROBUST = false; 
 // ---------------------------------- //
 
 /**
@@ -573,13 +573,13 @@ static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
   while (stateEstimatorHasDistanceMeasurement(&dist))
   {
     // // [CHANGE]
-    // if(ROBUST){
+    if(ROBUST){
     //     // robust KF update with distance measurements
-    //     kalmanCoreRobustUpdateWithDistance(&coreData, &dist);
-    // }else{
+        kalmanCoreRobustUpdateWithDistance(&coreData, &dist);
+    }else{
         // standard KF update
         kalmanCoreUpdateWithDistance(&coreData, &dist);
-    // }
+    }
     doneUpdate = true;
   }
 

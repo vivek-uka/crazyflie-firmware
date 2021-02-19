@@ -26,7 +26,7 @@
 
 #define MAX_ITER (2) // maximum iteration is set to 2. 
 
-// Cholesky Decomposition for a nxn psd matrix(from scratch)
+// Cholesky Decomposition for a nxn psd matrix (from scratch)
 // Reference: https://www.geeksforgeeks.org/cholesky-decomposition-matrix-decomposition/
 static void Cholesky_Decomposition(int n, float matrix[n][n],  float lower[n][n]){
     // Decomposing a matrix into Lower Triangular 
@@ -39,7 +39,6 @@ static void Cholesky_Decomposition(int n, float matrix[n][n],  float lower[n][n]
                     sum += powf(lower[j][k], 2); 
                 lower[j][j] = sqrtf(matrix[j][j] - sum); 
             } else { 
-                // Evaluating L(i, j) using L(j, j) 
                 for (int k = 0; k < j; k++) 
                     sum += (lower[i][k] * lower[j][k]); 
                 lower[i][j] = (matrix[i][j] - sum) / lower[j][j]; 
@@ -50,7 +49,7 @@ static void Cholesky_Decomposition(int n, float matrix[n][n],  float lower[n][n]
 
 // Weight function for GM Robust cost function
 static void GM_UWB(float e, float * GM_e){
-    float sigma = 2.0;                        // param1: 2.0,   param2: 2.5
+    float sigma = 1.5;                        // param1: 2.0,   param2: 2.5
     float GM_dn = sigma + e*e;
     *GM_e = (sigma * sigma)/(GM_dn * GM_dn);
 }
@@ -188,10 +187,7 @@ void kalmanCoreRobustUpdateWithDistance(kalmanCoreData_t* this, distanceMeasurem
             R_w = (R_chol * R_chol) / w_y;
         }
         // ====== INNOVATION COVARIANCE ====== //
-        // debug
-        // R_w = tdoa->stdDev * tdoa->stdDev;
-        // matrixcopy(STATE_DIM, STATE_DIM, P_w, P); 
-        // H is a row vector
+
         mat_trans(&H, &HTm);
         mat_mult(&P_w_m, &HTm, &PHTm);        // PHTm = P_w.dot(H.T). The P is the updated P_w 
 
@@ -212,8 +208,9 @@ void kalmanCoreRobustUpdateWithDistance(kalmanCoreData_t* this, distanceMeasurem
         R_iter = R_w;
     }
 
+
     // After n iterations, we obtain the rescaled (1) P = P_iter, (2) R = R_iter, (3) Kw.
-    // Call the kalman update function with P, K, R, h, and error_check
-    kalmanCoreUpdateWithPKR(this, &HTm, &Kwm, error_check, R_iter);
+    // Call the kalman update function with weighted P, weighted K, h, and error_check
+    kalmanCoreUpdateWithPKE(this, &H, &Kwm, &P_w_m, error_check);
 
 }

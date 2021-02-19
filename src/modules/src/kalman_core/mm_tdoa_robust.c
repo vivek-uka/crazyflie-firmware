@@ -26,9 +26,7 @@
      
 #define MAX_ITER (2) // maximum iteration is set to 2. 
 
-// #define MAX_COVARIANCE (100)
-// #define MIN_COVARIANCE (1e-6f)
-// Cholesky Decomposition for a nxn psd matrix(from scratch)
+// Cholesky Decomposition for a nxn psd matrix (from scratch)
 // Reference: https://www.geeksforgeeks.org/cholesky-decomposition-matrix-decomposition/
 static void Cholesky_Decomposition(int n, float matrix[n][n],  float lower[n][n]){
     // Decomposing a matrix into Lower Triangular 
@@ -41,7 +39,6 @@ static void Cholesky_Decomposition(int n, float matrix[n][n],  float lower[n][n]
                     sum += powf(lower[j][k], 2); 
                 lower[j][j] = sqrtf(matrix[j][j] - sum); 
             } else { 
-                // Evaluating L(i, j) using L(j, j) 
                 for (int k = 0; k < j; k++) 
                     sum += (lower[i][k] * lower[j][k]); 
                 lower[i][j] = (matrix[i][j] - sum) / lower[j][j]; 
@@ -161,8 +158,6 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
             float predicted_iter = d1 - d0;                         // predicted measurements in each iteration based on X_state
             float error_iter = measurement - predicted_iter;        // innovation term based on X_state
 
-            // debug
-            // error_iter = 0.1f;
             float e_y = error_iter;
             if ((d0 != 0.0f) && (d1 != 0.0f)){
                 // measurement Jacobian changes in each iteration w.r.t linearization point [x_iter, y_iter, z_iter]
