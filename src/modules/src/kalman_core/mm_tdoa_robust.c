@@ -130,7 +130,6 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
         static arm_matrix_instance_f32 PHTm = {KC_STATE_DIM, 1, PHTd};
         // ------------------- Some initialization -----------------------//
         // float xpr[STATE_DIM] = {0.0};                   // x prior (error state), set to be zeros 
-
         // x_err comes from the KF update is the state of error state Kalman filter, set to be zero initially
         static float x_err[KC_STATE_DIM] = {0.0};          
         static arm_matrix_instance_f32 x_errm = {KC_STATE_DIM, 1, x_err};
@@ -177,11 +176,7 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
                 else{ 
                     e_y = error_iter / R_chol;
                 }
-                // e_x = inv(Ppr_c) * (error_x), here error_x = x_err
-                // Problem: after deon mat_inv, Pc matrix becomes eye(9) !!!
-                // Reason: arm_mat_inverse_f32() overwrites the source matrix !!!
-                // https://community.arm.com/developer/tools-software/tools/f/keil-forum/32946/cmsis-dsp-matrix-inverse-problem
-                
+                 
                 // keep P_chol
                 matrixcopy(KC_STATE_DIM, KC_STATE_DIM, tmp1, P_chol);
                 mat_inv(&tmp1m, &Pc_inv_m);                            // Pc_inv_m = inv(Pc_m) = inv(P_chol)
@@ -208,10 +203,6 @@ void kalmanCoreRobustUpdateWithTDOA(kalmanCoreData_t* this, tdoaMeasurement_t *t
                     R_w = (R_chol * R_chol) / w_y;
                 }
                 // ====== INNOVATION COVARIANCE ====== //
-                // debug
-                // R_w = tdoa->stdDev * tdoa->stdDev;
-                // matrixcopy(STATE_DIM, STATE_DIM, P_w, P); 
-                // H is a row vector
                 mat_trans(&H, &HTm);
                 mat_mult(&P_w_m, &HTm, &PHTm);        // PHTm = P_w.dot(H.T). The P is the updated P_w 
 

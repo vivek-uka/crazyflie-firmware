@@ -111,13 +111,12 @@ static inline void matrixcopy(int ROW, int COLUMN, float destmat[ROW][COLUMN], f
         }
     }
 }
+
 // copy float vector
 static inline void vectorcopy(int DIM, float destVec[DIM], float srcVec[DIM]){
     for (int i=0; i<DIM; i++){
         destVec[i] = srcVec[i];
     }
 }
-// static inline void mat_add(const arm_matrix_instance_f32 * pSrcA, const arm_matrix_instance_f32 * pSrcB, arm_matrix_instance_f32 * pDst)
-// { ASSERT(ARM_MATH_SUCCESS == arm_mat_add_f32(pSrcA, pSrcB, pDst)); }
 
 

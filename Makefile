@@ -323,7 +323,7 @@ else
   CFLAGS += -Os
 
   # Fail on warnings
-#   CFLAGS += -Werror
+  CFLAGS += -Werror
 endif
 
 # Disable warnings for unaligned addresses in packed structs (added in GCC 9)
