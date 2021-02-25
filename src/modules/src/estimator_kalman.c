@@ -223,7 +223,7 @@ static StaticSemaphore_t dataMutexBuffer;
 #define MIN_COVARIANCE (1e-6f)
 
 // ----- [CHANGE] configuration ----- //
-static bool ROBUST = false; 
+static bool ROBUST = true; 
 // ---------------------------------- //
 
 /**
