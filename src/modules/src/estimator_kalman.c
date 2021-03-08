@@ -614,17 +614,20 @@ static bool updateQueuedMeasurments(const Axis3f *gyro, const uint32_t tick) {
 
 
   tdoaMeasurement_t tdoa;
+  static bool USE_UWB = false;
   while (stateEstimatorHasTDOAPacket(&tdoa))
   {
-    // [CHANGE]
-    if(ROBUST){
-        // robust KF update with TDOA measurements   
-        kalmanCoreRobustUpdateWithTDOA(&coreData, &tdoa);
-    }else{
-        // standard KF update
-        kalmanCoreUpdateWithTDOA(&coreData, &tdoa);
+    if(USE_UWB){  
+        // [CHANGE]
+        if(ROBUST){
+            // robust KF update with TDOA measurements   
+            kalmanCoreRobustUpdateWithTDOA(&coreData, &tdoa);
+        }else{
+            // standard KF update
+            kalmanCoreUpdateWithTDOA(&coreData, &tdoa);
+        }
+        doneUpdate = true;
     }
-    doneUpdate = true;
   }
 
   flowMeasurement_t flow;

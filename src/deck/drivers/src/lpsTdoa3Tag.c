@@ -105,6 +105,13 @@ for improved position estimation.
 static const locoAddress_t base_address = 0xcfbc;
 static const float hybridModeTwrStd = 0.25;
 
+// log parameter
+static float tdoa_meas_log = 0.0;
+static float tdoa_x1 = 0.0;  static float tdoa_y1 = 0.0;  static float tdoa_z1 = 0.0;
+static float tdoa_x0 = 0.0;  static float tdoa_y0 = 0.0;  static float tdoa_z0 = 0.0;
+static float hm_ranging_log = 0.0;
+static float hm_x = 0.0;     static float hm_y = 0.0;     static float hm_z = 0.0;
+
 typedef struct {
   uint8_t type;
   uint8_t seq;
@@ -250,6 +257,11 @@ static void processTwoWayRanging(const tdoaAnchorContext_t* anchorCtx, const uin
             .y = position.y,
             .z = position.z,
           };
+          // log hybrid mode ranging
+          hm_ranging_log = measurement.distance;
+          hm_x = measurement.x;
+          hm_y = measurement.y;
+          hm_z = measurement.z;
 
           estimatorEnqueueDistance(&measurement);
           STATS_CNT_RATE_EVENT(&ctx.cntTwrToEstimator);
@@ -524,6 +536,15 @@ static uint32_t onEvent(dwDevice_t *dev, uwbEvent_t event) {
 
 static void sendTdoaToEstimatorCallback(tdoaMeasurement_t* tdoaMeasurement, const uint8_t idA, const uint8_t idB) {
   if (ctx.isTdoaActive) {
+    // log tdoa3 data
+    tdoa_meas_log = tdoaMeasurement->distanceDiff;
+    tdoa_x0 = tdoaMeasurement->anchorPosition[0].x;
+    tdoa_y0 = tdoaMeasurement->anchorPosition[0].y;
+    tdoa_z0 = tdoaMeasurement->anchorPosition[0].z;
+    tdoa_x1 = tdoaMeasurement->anchorPosition[1].x;
+    tdoa_y1 = tdoaMeasurement->anchorPosition[1].y;
+    tdoa_z1 = tdoaMeasurement->anchorPosition[1].z;
+
     estimatorEnqueueTDOA(tdoaMeasurement);
 
     #ifdef LPS_2D_POSITION_HEIGHT
@@ -577,7 +598,7 @@ static void Initialize(dwDevice_t *dev) {
   ctx.latestTransmissionTime_ms = 0;
   ctx.nextTxTick = 0;
   ctx.isTdoaActive = true;
-  ctx.isTwrActive = false;
+  ctx.isTwrActive = true;
 
   ctx.averageTxDelay = 1000.0f / ANCHOR_MAX_TX_FREQ;
   ctx.nextTxDelayEvaluationTime_ms = 0;
@@ -603,10 +624,22 @@ uwbAlgorithm_t uwbTdoa3TagAlgorithm = {
 };
 
 
+
 LOG_GROUP_START(tdoa3)
   STATS_CNT_RATE_LOG_ADD(hmTx, &ctx.cntPacketsTransmited)
   STATS_CNT_RATE_LOG_ADD(hmSeqOk, &ctx.cntTwrSeqNrOk)
   STATS_CNT_RATE_LOG_ADD(hmEst, &ctx.cntTwrToEstimator)
+  LOG_ADD(LOG_FLOAT,tdoa_meas, &tdoa_meas_log)
+  LOG_ADD(LOG_FLOAT,x0, &tdoa_x0)
+  LOG_ADD(LOG_FLOAT, y0, &tdoa_y0)
+  LOG_ADD(LOG_FLOAT, z0, &tdoa_z0)
+  LOG_ADD(LOG_FLOAT, x1, &tdoa_x1)
+  LOG_ADD(LOG_FLOAT, y1, &tdoa_y1)
+  LOG_ADD(LOG_FLOAT, z1, &tdoa_z1)
+  LOG_ADD(LOG_FLOAT, hm_twr, &hm_ranging_log)
+  LOG_ADD(LOG_FLOAT, hm_px, &hm_x)
+  LOG_ADD(LOG_FLOAT, hm_py, &hm_y)
+  LOG_ADD(LOG_FLOAT, hm_pz, &hm_z)
 LOG_GROUP_STOP(tdoa3)
 
 PARAM_GROUP_START(tdoa3)
