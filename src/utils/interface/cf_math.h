@@ -121,4 +121,10 @@ static inline void vectorcopy(int DIM, float destVec[DIM], float srcVec[DIM]){
     }
 }
 
+static inline void mat_add(const arm_matrix_instance_f32 * pSrcA, const arm_matrix_instance_f32 * pSrcB, arm_matrix_instance_f32 * pDst) {
+  assert_aligned_4_bytes(pSrcA);
+  assert_aligned_4_bytes(pSrcB);
+  assert_aligned_4_bytes(pDst);
 
+  ASSERT(ARM_MATH_SUCCESS == arm_mat_add_f32(pSrcA, pSrcB, pDst));
+}
