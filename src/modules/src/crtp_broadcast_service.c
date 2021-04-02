@@ -14,7 +14,7 @@
 #include "log.h"
 #include "param.h"
 #include "configblock.h"
-#include "estimator_kalman.h"
+#include "estimator.h"
 #include "commander.h"
 
 // Position data cache
@@ -194,9 +194,8 @@ bool getExtPosVelYawBC(state_t *state){
     		posvelyaw.stdDev_yaw = 4.414e-3; // [CHECK]
 
     		#ifndef PLATFORM_CF1
-    		//    estimatorKalmanEnqueuePosition(&broadcast_pos);
     			if (useVicon)
-                    estimatorKalmanEnqueuePosVelYaw(&posvelyaw); // call kalman filter update
+                    estimatorEnqueuePosVelYaw(&posvelyaw); // call kalman filter update  
     		#endif
     		crtpExtPosCache.new_data = false;
 
