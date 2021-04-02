@@ -47,6 +47,7 @@ typedef enum {
   MeasurementTypeGyroscope,
   MeasurementTypeAcceleration,
   MeasurementTypeBarometer,
+  MeasurementTypePosVelYaw,                         // [Change] Vicon measurements
 } MeasurementType;
 
 typedef struct
@@ -66,6 +67,7 @@ typedef struct
     gyroscopeMeasurement_t gyroscope;
     accelerationMeasurement_t acceleration;
     barometerMeasurement_t barometer;
+    posvelyawMeasurement_t posvelyaw;              // [Change] Vicon measurement
   } data;
 } measurement_t;
 
@@ -151,6 +153,15 @@ static inline void estimatorEnqueueSweepAngles(const sweepAngleMeasurement_t *sw
   m.data.sweepAngle = *sweepAngle;
   estimatorEnqueue(&m);
 }
+
+// [Change] Vicon measurements
+static inline void estimatorEnqueuePosVelYaw(const posvelyawMeasurement_t *posvelyaw)
+{
+    measurement_t m;
+    m.type = MeasurementTypePosVelYaw;
+    m.data.posvelyaw = *posvelyaw;
+    estimatorEnqueue(&m);
+} 
 
 // Helper function for state estimators
 bool estimatorDequeue(measurement_t *measurement);

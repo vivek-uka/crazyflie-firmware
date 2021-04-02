@@ -28,6 +28,7 @@ LPS_TDMA_ENABLE   ?= 0
 LPS_TDOA_ENABLE   ?= 0
 LPS_TDOA3_ENABLE  ?= 0
 
+BROADCAST_ENABLE  ?= 1    # [CHANGE]
 
 # Platform configuration handling
 -include current_platform.mk
@@ -175,6 +176,13 @@ PROJ_OBJ += eventtrigger.o supervisor.o
 PROJ_OBJ += commander.o crtp_commander.o crtp_commander_rpyt.o
 PROJ_OBJ += crtp_commander_generic.o crtp_localization_service.o peer_localization.o
 PROJ_OBJ += attitude_pid_controller.o sensfusion6.o stabilizer.o
+
+# [CHANGE]
+ifeq ($(BROADCAST_ENABLE), 1)
+PROJ_OBJ += crtp_broadcast_service.o
+CFLAGS += -DBROADCAST_ENABLE
+endif
+
 PROJ_OBJ += position_estimator_altitude.o position_controller_pid.o position_controller_indi.o
 PROJ_OBJ += estimator.o estimator_complementary.o
 PROJ_OBJ += controller.o controller_pid.o controller_mellinger.o controller_indi.o

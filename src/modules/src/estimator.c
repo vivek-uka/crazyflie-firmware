@@ -40,6 +40,7 @@ EVENTTRIGGER(estSweepAngle, uint8, sensorId, uint8, basestationId, uint8, sweepI
 EVENTTRIGGER(estGyroscope)
 EVENTTRIGGER(estAcceleration)
 EVENTTRIGGER(estBarometer)
+EVENTTRIGGER(estPosVelYaw)      
 
 static void initEstimator(const StateEstimatorType estimator);
 static void deinitEstimator(const StateEstimatorType estimator);
@@ -218,6 +219,12 @@ void estimatorEnqueue(const measurement_t *measurement) {
       // no payload needed, see baro.asl
       eventTrigger(&eventTrigger_estBarometer);
       break;
+
+    // [Change] Vicon measurements
+    case MeasurementTypePosVelYaw:
+      eventTrigger(&eventTrigger_estPosVelYaw);
+      break;
+
     default:
       break;
   }

@@ -41,7 +41,16 @@
 
 #include "sensors.h"
 #include "commander.h"
+
+// #include "crtp_localization_service.h"
+// [CHANGE]
+// note: BROADCAST_ENABLE is set in config.mk
+#ifdef BROADCAST_ENABLE
+#include "crtp_broadcast_service.h"
+#else
 #include "crtp_localization_service.h"
+#endif
+
 #include "controller.h"
 #include "power_distribution.h"
 #include "collision_avoidance.h"
@@ -238,6 +247,14 @@ static void stabilizerTask(void* param)
     // The sensor should unlock at 1kHz
     sensorsWaitDataReady();
     
+    // [Change] get Vicon broadcast measurements
+    #ifdef BROADCAST_ENABLE
+    //    getExtPositionBC(&state);
+    //    getExtPosVelBC(&state); // 
+    getExtPosVelYawBC(&state); // we are currently here yaw estimation
+    #endif
+    // ----------------------------------------------------- //
+
     // update sensorData struct (for logging variables)
     sensorsAcquire(&sensorData, tick);
 
