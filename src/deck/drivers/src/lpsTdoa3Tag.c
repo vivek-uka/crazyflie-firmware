@@ -92,6 +92,12 @@ typedef struct {
   uint8_t remoteAnchorData;
 } __attribute__((packed)) rangePacket3_t;
 
+// log tdoa3 d12 data
+static float log_tdoa3_d12 = 0.0f;
+static float log_snr_1 = 0.0f;          // FP Amplitude / CIRE noiseStd from anchor 1
+static float log_snr_2 = 0.0f;          // FP Amplitude / CIRE noiseStd from anchor 2
+static float log_powerdiff_1 = 0.0f;    // RX_POWER - FP_POWER from anchor 1
+static float log_powerdiff_2 = 0.0f;    // RX_POWER - FP_POWER from anchor 2
 
 // Outgoing LPP packet
 static lpsLppShortPacket_t lppPacket;
@@ -171,6 +177,23 @@ static void rxcallback(dwDevice_t *dev) {
 
   dwGetData(dev, (uint8_t*)&rxPacket, dataLength);
   const uint8_t anchorId = rxPacket.sourceAddress & 0xff;
+  // get the (1) first path power:              FP_POWER,
+  //         (2) total received power:          RX_POWER,
+  //     and (3) FP Amplitude / CIRE noiseStd:  snr
+  float RX_POWER = 0.0f;    // received power
+  float FP_POWER = 0.0f;    // first path power
+  FP_POWER = dwGetFirstPathPower(dev);
+  RX_POWER = dwGetReceivePower(dev);
+  if(anchorId==(uint8_t)1)
+  {
+      log_snr_1 = dwGetReceiveQuality(dev);
+      log_powerdiff_1 = RX_POWER - FP_POWER;
+  }
+  else if (anchorId==(uint8_t)2)
+  {
+      log_snr_2 = dwGetReceiveQuality(dev);
+      log_powerdiff_2 = RX_POWER - FP_POWER;
+  }
 
   dwTime_t arrival = {.full = 0};
   dwGetReceiveTimestamp(dev, &arrival);
@@ -269,6 +292,15 @@ static void sendTdoaToEstimatorCallback(tdoaMeasurement_t* tdoaMeasurement) {
   heightData.stdDev = 0.0001;
   estimatorEnqueueAbsoluteHeight(&heightData);
   #endif
+
+    // For signal testing, log the TDOA3 data between anchor 1 and anchor 2
+    const uint8_t idA = tdoaMeasurement->anchorIds[0];
+    const uint8_t idB = tdoaMeasurement->anchorIds[1];
+    if (idA==(uint8_t)1 && idB == (uint8_t)2)
+    {
+        log_tdoa3_d12 = tdoaMeasurement->distanceDiff;
+    }
+
 }
 
 static bool getAnchorPosition(const uint8_t anchorId, point_t* position) {
@@ -321,3 +353,18 @@ uwbAlgorithm_t uwbTdoa3TagAlgorithm = {
   .getAnchorIdList = getAnchorIdList,
   .getActiveAnchorIdList = getActiveAnchorIdList,
 };
+
+
+// static float log_snr_1 = 0.0f;          // FP Amplitude / CIRE noiseStd from anchor 1
+// static float log_snr_2 = 0.0f;          // FP Amplitude / CIRE noiseStd from anchor 2
+// static float log_powerdiff_1 = 0.0f;    // RX_POWER - FP_POWER from anchor 1
+// static float log_powerdiff_2 = 0.0f;    // RX_POWER - FP_POWER from anchor 2
+
+
+LOG_GROUP_START(tdoa3)
+LOG_ADD(LOG_FLOAT, d1-2,    &log_tdoa3_d12)
+LOG_ADD(LOG_FLOAT, snr_1,   &log_snr_1)
+LOG_ADD(LOG_FLOAT, snr_2,   &log_snr_2)
+LOG_ADD(LOG_FLOAT, powerdiff_1, &log_powerdiff_1)
+LOG_ADD(LOG_FLOAT, powerdiff_2, &log_powerdiff_2)
+LOG_GROUP_STOP(tdoa3)
