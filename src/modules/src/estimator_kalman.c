@@ -120,6 +120,8 @@ static StaticSemaphore_t dataMutexBuffer;
 static bool robustTwr = false;
 static bool robustTdoa = false;
 
+static bool enableUWB_tdoa = false;
+static bool enableUWB_twr = false;
 /**
  * Quadrocopter State
  *
@@ -344,12 +346,14 @@ static bool updateQueuedMeasurements(const uint32_t tick) {
   while (estimatorDequeue(&m)) {
     switch (m.type) {
       case MeasurementTypeTDOA:
-        if(robustTdoa){
-          // robust KF update with TDOA measurements
-          kalmanCoreRobustUpdateWithTDOA(&coreData, &m.data.tdoa);
-        }else{
-          // standard KF update
-          kalmanCoreUpdateWithTDOA(&coreData, &m.data.tdoa);
+        if(enableUWB_tdoa){
+            if(robustTdoa){
+            // robust KF update with TDOA measurements
+            kalmanCoreRobustUpdateWithTDOA(&coreData, &m.data.tdoa);
+            }else{
+            // standard KF update
+            kalmanCoreUpdateWithTDOA(&coreData, &m.data.tdoa);
+            }
         }
         doneUpdate = true;
         break;
@@ -362,12 +366,14 @@ static bool updateQueuedMeasurements(const uint32_t tick) {
         doneUpdate = true;
         break;
       case MeasurementTypeDistance:
-        if(robustTwr){
-            // robust KF update with UWB TWR measurements
-            kalmanCoreRobustUpdateWithDistance(&coreData, &m.data.distance);
-        }else{
-            // standard KF update
-            kalmanCoreUpdateWithDistance(&coreData, &m.data.distance);
+        if(enableUWB_twr){
+            if(robustTwr){
+                // robust KF update with UWB TWR measurements
+                kalmanCoreRobustUpdateWithDistance(&coreData, &m.data.distance);
+            }else{
+                // standard KF update
+                kalmanCoreUpdateWithDistance(&coreData, &m.data.distance);
+            }
         }
         doneUpdate = true;
         break;
