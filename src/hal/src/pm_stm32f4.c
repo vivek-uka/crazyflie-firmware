@@ -88,6 +88,8 @@ static PMStates pmState;
 static PmSyslinkInfo pmSyslinkInfo;
 
 static uint8_t batteryLevel;
+// log the battery voltage
+static float log_batteryVoltage;
 
 static void pmSetBatteryVoltage(float voltage);
 
@@ -324,11 +326,11 @@ void pmTask(void *param)
     vTaskDelay(100);
     tickCount = xTaskGetTickCount();
 
-    extBatteryVoltage = pmMeasureExtBatteryVoltage();
+    extBatteryVoltage = pmMeasureExtBatteryVoltage();           
     extBatteryVoltageMV = (uint16_t)(extBatteryVoltage * 1000);
     extBatteryCurrent = pmMeasureExtBatteryCurrent();
     batteryLevel = pmBatteryChargeFromVoltage(pmGetBatteryVoltage()) * 10;
-
+    log_batteryVoltage = pmGetBatteryVoltage();      // This function returns CF battery value. If the CF is charged with external charger, this value is not correct.
     if (pmGetBatteryVoltage() > PM_BAT_LOW_VOLTAGE)
     {
       batteryLowTimeStamp = tickCount;
@@ -416,6 +418,7 @@ LOG_ADD(LOG_FLOAT, extCurr, &extBatteryCurrent)
 LOG_ADD(LOG_FLOAT, chargeCurrent, &pmSyslinkInfo.chargeCurrent)
 LOG_ADD(LOG_INT8, state, &pmState)
 LOG_ADD(LOG_UINT8, batteryLevel, &batteryLevel)
+LOG_ADD(LOG_FLOAT, log_batteryVoltage, &log_batteryVoltage)
 #ifdef PM_SYSTLINK_INLCUDE_TEMP
 LOG_ADD(LOG_FLOAT, temp, &temp)
 #endif
