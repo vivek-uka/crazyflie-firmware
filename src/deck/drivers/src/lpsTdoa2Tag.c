@@ -87,6 +87,8 @@ static float logClockCorrection[LOCODECK_NR_OF_TDOA2_ANCHORS];
 static uint16_t logAnchorDistance[LOCODECK_NR_OF_TDOA2_ANCHORS];
 
 static bool rangingOk;
+// [CHANGE] Set a counter to reduce the TDoA update freqeuncy
+static int counter = 0;
 
 // The default receive time in the anchors for messages from other anchors is 0
 // and is overwritten with the actual receive time when a packet arrives.
@@ -206,7 +208,16 @@ static bool rxcallback(dwDevice_t *dev) {
       tdoaAnchorContext_t anchorCtx;
       tdoaEngineGetAnchorCtxForPacketProcessing(&tdoaEngineState, anchor, now_ms, &anchorCtx);
       updateRemoteData(&anchorCtx, packet);
-      tdoaEngineProcessPacket(&tdoaEngineState, &anchorCtx, txAn_in_cl_An, rxAn_by_T_in_cl_T);
+
+      //[CHANGE] compute tdoa meas. send to EKF
+      if (counter == 5){
+        tdoaEngineProcessPacket(&tdoaEngineState, &anchorCtx, txAn_in_cl_An, rxAn_by_T_in_cl_T);
+        counter=0;   // reset counter
+      }else{
+        // drop the measurement 
+        counter++;
+      }
+
       tdoaStorageSetRxTxData(&anchorCtx, rxAn_by_T_in_cl_T, txAn_in_cl_An, seqNr);
 
       logClockCorrection[anchor] = tdoaStorageGetClockCorrection(&anchorCtx);

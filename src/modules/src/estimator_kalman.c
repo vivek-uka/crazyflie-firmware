@@ -118,7 +118,7 @@ static StaticSemaphore_t dataMutexBuffer;
 // Use the robust implementations of TWR and TDoA, off by default but can be turned on through a parameter.
 // The robust implementations use around 10% more CPU VS the standard flavours
 static bool robustTwr = false;
-static bool robustTdoa = false;
+static bool robustTdoa = true;
 
 /**
  * Quadrocopter State
@@ -347,12 +347,14 @@ static bool updateQueuedMeasurements(const uint32_t tick) {
   while (estimatorDequeue(&m)) {
     switch (m.type) {
       case MeasurementTypeTDOA:
+        if(coreData.S[KC_STATE_Z]>0.5f){
         if(robustTdoa){
           // robust KF update with TDOA measurements
           kalmanCoreRobustUpdateWithTDOA(&coreData, &m.data.tdoa);
         }else{
           // standard KF update
           kalmanCoreUpdateWithTDOA(&coreData, &m.data.tdoa);
+        }
         }
         doneUpdate = true;
         break;
