@@ -53,12 +53,26 @@ The implementation must handle
 #include "clockCorrectionEngine.h"
 #include "physicalConstants.h"
 
+#include "log.h"
+
 #define MEASUREMENT_NOISE_STD 0.15f
+
+// define the locodeck_freq for easy of use in this code
+// it is the same with the "#define LOCODECK_TS_FREQ (499.2e6 * 128)" in locodeck.h
+#define LOCODECK_FREQ (499.2e6 * 128)
+#define ANTENNA_OFFSET 154.6
+#define LOCODECK_ANTENNA_DELAY  ((ANTENNA_OFFSET * LOCODECK_FREQ) / SPEED_OF_LIGHT) // In radio ticks
+// log data
+static float log_tdoa_in_clT = 0.0f;
+static float log_d1 = 0.0f;
+static float log_d2 = 0.0f;
+static uint16_t log_tof = 0;
+static float tof_dist = 0.0f;
 
 void tdoaEngineInit(tdoaEngineState_t* engineState, const uint32_t now_ms, tdoaEngineSendTdoaToEstimator sendTdoaToEstimator, const double locodeckTsFreq, const tdoaEngineMatchingAlgorithm_t matchingAlgorithm) {
   tdoaStorageInitialize(engineState->anchorInfoArray);
   tdoaStatsInit(&engineState->stats, now_ms);
-  engineState->sendTdoaToEstimator = sendTdoaToEstimator;
+  engineState->sendTdoaToEstimator = sendTdoaToEstimator;   // for TDOA3, init the function to sendTdoaToEstimatorCallback in lpsTdoa3Tag.c
   engineState->locodeckTsFreq = locodeckTsFreq;
   engineState->matchingAlgorithm = matchingAlgorithm;
 
@@ -67,7 +81,7 @@ void tdoaEngineInit(tdoaEngineState_t* engineState, const uint32_t now_ms, tdoaE
 
 static void enqueueTDOA(const tdoaAnchorContext_t* anchorACtx, const tdoaAnchorContext_t* anchorBCtx, double distanceDiff, tdoaEngineState_t* engineState) {
   tdoaStats_t* stats = &engineState->stats;
-
+  
   tdoaMeasurement_t tdoa = {
     .stdDev = MEASUREMENT_NOISE_STD,
     .distanceDiff = distanceDiff
@@ -86,8 +100,7 @@ static void enqueueTDOA(const tdoaAnchorContext_t* anchorACtx, const tdoaAnchorC
     }
     tdoa.anchorIds[0] = idA;
     tdoa.anchorIds[1] = idB;
-
-    engineState->sendTdoaToEstimator(&tdoa);
+    engineState->sendTdoaToEstimator(&tdoa);   // for TDOA3, call the function sendTdoaToEstimatorCallback
   }
 }
 
@@ -112,6 +125,8 @@ static bool updateClockCorrection(tdoaAnchorContext_t* anchorCtx, const int64_t 
   return sampleIsReliable;
 }
 
+// [change] log every value to compute the TDOA meas.
+
 static int64_t calcTDoA(const tdoaAnchorContext_t* otherAnchorCtx, const tdoaAnchorContext_t* anchorCtx, const int64_t txAn_in_cl_An, const int64_t rxAn_by_T_in_cl_T) {
   const uint8_t otherAnchorId = tdoaStorageGetId(otherAnchorCtx);
 
@@ -124,9 +139,42 @@ static int64_t calcTDoA(const tdoaAnchorContext_t* otherAnchorCtx, const tdoaAnc
   const int64_t delta_txAr_to_txAn_in_cl_An = (tof_Ar_to_An_in_cl_An + tdoaEngineTruncateToAnchorTimeStamp(txAn_in_cl_An - rxAr_by_An_in_cl_An));
   const int64_t timeDiffOfArrival_in_cl_T =  tdoaEngineTruncateToAnchorTimeStamp(rxAn_by_T_in_cl_T - rxAr_by_T_in_cl_T) - delta_txAr_to_txAn_in_cl_An  * clockCorrection;
 
+  // log data
+  // otherAnchorCtx is anA,  anchorCtx is anB
+  uint8_t idA = tdoaStorageGetId(otherAnchorCtx);
+  uint8_t idB = tdoaStorageGetId(anchorCtx);
+  if(idA==(uint8_t)1 && idB == (uint8_t)2){
+      // d1_in_cl_T = t1 - alpha * t_an_r + alpha * tof
+    //   int64_t d1_in_cl_T = tdoaEngineTruncateToAnchorTimeStamp(rxAr_by_T_in_cl_T) - clockCorrection*tdoaEngineTruncateToAnchorTimeStamp(rxAr_by_An_in_cl_An) + clockCorrection * tof_Ar_to_An_in_cl_An;
+      // d2_in_cl_T = t2 - alpha * t_an_t  
+    //   int64_t d2_in_cl_T = tdoaEngineTruncateToAnchorTimeStamp(rxAn_by_T_in_cl_T) - clockCorrection*tdoaEngineTruncateToAnchorTimeStamp(txAn_in_cl_An);
+
+      // the values in dummy_d1 and dummy_d2 are correct    
+    //   int64_t dummy_d1 = tdoaEngineTruncateToAnchorTimeStamp(rxAn_by_T_in_cl_T - rxAr_by_T_in_cl_T);
+    //   int64_t dummy_d2 = delta_txAr_to_txAn_in_cl_An  * clockCorrection;
+      log_tof = (uint16_t)tof_Ar_to_An_in_cl_An;
+      // need to minus the ANTENNA_OFFSET (see tdoa3_tof.py in anchor sniffer code)
+      // now tof_dist is correct
+      tof_dist = SPEED_OF_LIGHT * log_tof / LOCODECK_FREQ - ANTENNA_OFFSET;
+
+      // the values in dmy_d1 and dmy_d2 are correct 
+      // when I use the dmy_d1 to compute distance, the value has a large base (base + distance)
+      // yte compute the distance_diff is correct
+      int64_t dmy_d1 = tdoaEngineTruncateToAnchorTimeStamp(rxAr_by_T_in_cl_T) - clockCorrection*tdoaEngineTruncateToAnchorTimeStamp(rxAr_by_An_in_cl_An) + clockCorrection * tof_Ar_to_An_in_cl_An;
+      int64_t dmy_d2 = tdoaEngineTruncateToAnchorTimeStamp(rxAn_by_T_in_cl_T) - clockCorrection*tdoaEngineTruncateToAnchorTimeStamp(txAn_in_cl_An);
+      
+      // when put into the logging (float), we lost some values. (for both dmy_d1 and dummy_d1)
+      log_d1 = dmy_d1;
+      log_d2 = dmy_d2;
+    //   log_d1 = dummy_d1;
+    //   log_d2 = dummy_d2;
+      log_tdoa_in_clT  = SPEED_OF_LIGHT * timeDiffOfArrival_in_cl_T / LOCODECK_FREQ;
+  } 
   return timeDiffOfArrival_in_cl_T;
 }
 
+// [change] log every value to compute the TDOA meas.
+// locodeckTsFreq is init in locodeck.h. ----->  #define LOCODECK_TS_FREQ (499.2e6 * 128)
 static double calcDistanceDiff(const tdoaAnchorContext_t* otherAnchorCtx, const tdoaAnchorContext_t* anchorCtx, const int64_t txAn_in_cl_An, const int64_t rxAn_by_T_in_cl_T, const double locodeckTsFreq) {
   const int64_t tdoa = calcTDoA(otherAnchorCtx, anchorCtx, txAn_in_cl_An, rxAn_by_T_in_cl_T);
   return SPEED_OF_LIGHT * tdoa / locodeckTsFreq;
@@ -235,7 +283,17 @@ void tdoaEngineProcessPacketFiltered(tdoaEngineState_t* engineState, tdoaAnchorC
     if (findSuitableAnchor(engineState, &otherAnchorCtx, anchorCtx, doExcludeId, excludedId)) {
       STATS_CNT_RATE_EVENT(&engineState->stats.suitableDataFound);
       double tdoaDistDiff = calcDistanceDiff(&otherAnchorCtx, anchorCtx, txAn_in_cl_An, rxAn_by_T_in_cl_T, engineState->locodeckTsFreq);
+      // otherAnchorCtx is anA,  anchorCtx is anB
       enqueueTDOA(&otherAnchorCtx, anchorCtx, tdoaDistDiff, engineState);
     }
   }
 }
+
+LOG_GROUP_START(engine)
+LOG_ADD(LOG_FLOAT,  tdoa_in_clT, &log_tdoa_in_clT)
+LOG_ADD(LOG_FLOAT,  d1_in_clT,   &log_d1)
+LOG_ADD(LOG_FLOAT,  d2_in_clT,   &log_d2)
+LOG_ADD(LOG_UINT16, tof_in_cl,   &log_tof)
+LOG_ADD(LOG_FLOAT,  dist-tof,    &tof_dist)
+LOG_GROUP_STOP(engine)
+

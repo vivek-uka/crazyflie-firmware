@@ -125,10 +125,13 @@ void locoDeckSetRangingState(const uint16_t newState);
 
 #define LPP_SHORT_ANCHORPOS 0x01
 
+// [change] add the anchor received power values
 struct lppShortAnchorPos_s {
   float x;
   float y;
   float z;
+  float snr;
+  float power_diff;
 } __attribute__((packed));
 
 #endif // __LOCODECK_H__

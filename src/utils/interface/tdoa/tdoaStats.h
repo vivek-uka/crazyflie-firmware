@@ -20,7 +20,7 @@ typedef struct {
   float clockCorrection;
   statsCntRateLogger_t clockCorrectionCount;
 
-  // TOF data from remoteAnchorId to anchorId, measured by anchorId
+  // TOF data from remoteAnchorId to anchorId, measured by anchorId. The unit is in radio ticks
   uint16_t tof;
 
   // TDoA (in meters) between anchorId and remoteAnchorId

@@ -113,6 +113,7 @@ static void updateRemoteData(tdoaAnchorContext_t* anchorCtx, const rangePacket2_
 
       bool hasDistance = (packet->distances[i] != 0);
       if (hasDistance) {
+        // send uint16_t to int64_t. Because it doesn't lose the accuracy here.
         int64_t tof = packet->distances[i];
         if (isValidTimeStamp(tof)) {
           tdoaStorageSetTimeOfFlight(anchorCtx, remoteId, tof);
@@ -383,6 +384,7 @@ LOG_ADD(LOG_FLOAT, cc5, &logClockCorrection[5])
 LOG_ADD(LOG_FLOAT, cc6, &logClockCorrection[6])
 LOG_ADD(LOG_FLOAT, cc7, &logClockCorrection[7])
 
+// the unit is in radio ticks, to compute the tof between anchors, check the tdoa3_tof.py in anchor sniffer code
 LOG_ADD(LOG_UINT16, dist7-0, &logAnchorDistance[0])
 LOG_ADD(LOG_UINT16, dist0-1, &logAnchorDistance[1])
 LOG_ADD(LOG_UINT16, dist1-2, &logAnchorDistance[2])

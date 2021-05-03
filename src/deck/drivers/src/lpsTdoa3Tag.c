@@ -67,6 +67,10 @@ The implementation must handle
 
 #define TDOA3_RECEIVE_TIMEOUT 10000
 
+
+#define ANTENNA_OFFSET  154.6
+
+
 typedef struct {
   uint8_t type;
   uint8_t seq;
@@ -99,6 +103,14 @@ static float log_snr_2 = 0.0f;          // FP Amplitude / CIRE noiseStd from anc
 static float log_powerdiff_1 = 0.0f;    // RX_POWER - FP_POWER from anchor 1
 static float log_powerdiff_2 = 0.0f;    // RX_POWER - FP_POWER from anchor 2
 
+static float log_anchor1_RX_snr = 0.0f;       // anchor1 received snr from anchor2
+static float log_anchor1_RX_powerdif = 0.0f;  // anchor1 received power diff from anchor2
+static float log_anchor2_RX_snr = 0.0f;       // anchor2 received snr from anchor1
+static float log_anchor2_RX_powerdif = 0.0f;  // anchor2 received power diff from anchor1
+
+static float log_anchor1_tof = 0.0f;    // the tof from anchor 1
+static float log_anchor2_tof = 0.0f;    // the tof from anchor 2
+
 // Outgoing LPP packet
 static lpsLppShortPacket_t lppPacket;
 
@@ -124,6 +136,7 @@ static int updateRemoteData(tdoaAnchorContext_t* anchorCtx, const void* payload)
 
     bool hasDistance = ((anchorData->seq & 0x80) != 0);
     if (hasDistance) {
+      // send uint16_t to int64_t. Because it doesn't lose the accuracy here.
       int64_t tof = anchorData->distance;
       if (isValidTimeStamp(tof)) {
         tdoaStorageSetTimeOfFlight(anchorCtx, remoteId, tof);
@@ -131,7 +144,21 @@ static int updateRemoteData(tdoaAnchorContext_t* anchorCtx, const void* payload)
         uint8_t anchorId = tdoaStorageGetId(anchorCtx);
         tdoaStats_t* stats = &tdoaEngineState.stats;
         if (anchorId == stats->anchorId && remoteId == stats->remoteAnchorId) {
-          stats->tof = (uint16_t)tof;
+          stats->tof = (uint16_t)tof;  // the unit is in radio tick
+        }
+        //--------------------------- change --------------------------------//
+        // compute the tof distance (in meter)
+        //  M_PER_TICK = SPEED_OF_LIGHT / LOCODECK_TS_FREQ
+        //  precompute value
+        double M_PER_TICK = 0.0046917639786157855; 
+        // check anchorId
+        if(anchorId ==(uint8_t)1){
+            // tof meas. carried in anchor1's packet (in meter)
+            log_anchor1_tof = (uint16_t)tof* M_PER_TICK - ANTENNA_OFFSET;
+        }
+        if(anchorId ==(uint8_t)2){
+            // tof meas. carried in anchor2's packet (in meter)
+            log_anchor2_tof = (uint16_t)tof* M_PER_TICK - ANTENNA_OFFSET;
         }
       }
 
@@ -144,16 +171,28 @@ static int updateRemoteData(tdoaAnchorContext_t* anchorCtx, const void* payload)
   return (uint8_t*)anchorDataPtr - (uint8_t*)packet;
 }
 
-static void handleLppShortPacket(tdoaAnchorContext_t* anchorCtx, const uint8_t *data, const int length) {
+static void handleLppShortPacket(tdoaAnchorContext_t* anchorCtx, const uint8_t *data, const int length, uint8_t anchorId) {
   uint8_t type = data[0];
 
   if (type == LPP_SHORT_ANCHORPOS) {
     struct lppShortAnchorPos_s *newpos = (struct lppShortAnchorPos_s*)&data[1];
     tdoaStorageSetAnchorPosition(anchorCtx, newpos->x, newpos->y, newpos->z);
+    // receive the power values
+    // check anchor id
+    // [Note]: check if anchorId == tdoaStorageGetId(anchorCtx)
+    // If yes, we don't need to send anchorId in
+    if(anchorId ==(uint8_t)1){
+        log_anchor1_RX_snr = newpos->snr;
+        log_anchor1_RX_powerdif = newpos->power_diff;
+    }
+    if(anchorId ==(uint8_t)2){
+        log_anchor2_RX_snr = newpos->snr;
+        log_anchor2_RX_powerdif = newpos->power_diff;
+    }
   }
 }
 
-static void handleLppPacket(const int dataLength, int rangePacketLength, const packet_t* rxPacket, tdoaAnchorContext_t* anchorCtx) {
+static void handleLppPacket(const int dataLength, int rangePacketLength, const packet_t* rxPacket, tdoaAnchorContext_t* anchorCtx, uint8_t anchorId) {
   const int32_t payloadLength = dataLength - MAC802154_HEADER_LENGTH;
   const int32_t startOfLppDataInPayload = rangePacketLength;
   const int32_t lppDataLength = payloadLength - startOfLppDataInPayload;
@@ -163,7 +202,8 @@ static void handleLppPacket(const int dataLength, int rangePacketLength, const p
     const uint8_t lppPacketHeader = rxPacket->payload[startOfLppDataInPayload];
     if (lppPacketHeader == LPP_HEADER_SHORT_PACKET) {
       const int32_t lppTypeAndPayloadLength = lppDataLength - 1;
-      handleLppShortPacket(anchorCtx, &rxPacket->payload[lppTypeInPayload], lppTypeAndPayloadLength);
+      // send anchor id
+      handleLppShortPacket(anchorCtx, &rxPacket->payload[lppTypeInPayload], lppTypeAndPayloadLength, anchorId);
     }
   }
 }
@@ -208,10 +248,13 @@ static void rxcallback(dwDevice_t *dev) {
     uint32_t now_ms = T2M(xTaskGetTickCount());
 
     tdoaEngineGetAnchorCtxForPacketProcessing(&tdoaEngineState, anchorId, now_ms, &anchorCtx);
+    // [change]: send the anchor id
     int rangeDataLength = updateRemoteData(&anchorCtx, packet);
     tdoaEngineProcessPacket(&tdoaEngineState, &anchorCtx, txAn_in_cl_An, rxAn_by_T_in_cl_T);
+
     tdoaStorageSetRxTxData(&anchorCtx, rxAn_by_T_in_cl_T, txAn_in_cl_An, seqNr);
-    handleLppPacket(dataLength, rangeDataLength, &rxPacket, &anchorCtx);
+    // [change]: send the anchor id
+    handleLppPacket(dataLength, rangeDataLength, &rxPacket, &anchorCtx, anchorId);
 
     rangingOk = true;
   }
@@ -292,7 +335,7 @@ static void sendTdoaToEstimatorCallback(tdoaMeasurement_t* tdoaMeasurement) {
   heightData.stdDev = 0.0001;
   estimatorEnqueueAbsoluteHeight(&heightData);
   #endif
-
+    // change
     // For signal testing, log the TDOA3 data between anchor 1 and anchor 2
     const uint8_t idA = tdoaMeasurement->anchorIds[0];
     const uint8_t idB = tdoaMeasurement->anchorIds[1];
@@ -355,16 +398,18 @@ uwbAlgorithm_t uwbTdoa3TagAlgorithm = {
 };
 
 
-// static float log_snr_1 = 0.0f;          // FP Amplitude / CIRE noiseStd from anchor 1
-// static float log_snr_2 = 0.0f;          // FP Amplitude / CIRE noiseStd from anchor 2
-// static float log_powerdiff_1 = 0.0f;    // RX_POWER - FP_POWER from anchor 1
-// static float log_powerdiff_2 = 0.0f;    // RX_POWER - FP_POWER from anchor 2
-
 
 LOG_GROUP_START(tdoa3)
-LOG_ADD(LOG_FLOAT, d1-2,    &log_tdoa3_d12)
-LOG_ADD(LOG_FLOAT, snr_1,   &log_snr_1)
-LOG_ADD(LOG_FLOAT, snr_2,   &log_snr_2)
+LOG_ADD(LOG_FLOAT, d1-2,        &log_tdoa3_d12)
+LOG_ADD(LOG_FLOAT, snr_1,       &log_snr_1)
+LOG_ADD(LOG_FLOAT, snr_2,       &log_snr_2)
 LOG_ADD(LOG_FLOAT, powerdiff_1, &log_powerdiff_1)
 LOG_ADD(LOG_FLOAT, powerdiff_2, &log_powerdiff_2)
+
+LOG_ADD(LOG_FLOAT, an1_rx_snr,        &log_anchor1_RX_snr)
+LOG_ADD(LOG_FLOAT, an1_rx_powerdif,   &log_anchor1_RX_powerdif)
+LOG_ADD(LOG_FLOAT, an2_rx_snr,        &log_anchor2_RX_snr)
+LOG_ADD(LOG_FLOAT, an2_rx_powerdif,   &log_anchor2_RX_powerdif)
+LOG_ADD(LOG_FLOAT, an1_tof,           &log_anchor1_tof)
+LOG_ADD(LOG_FLOAT, an2_tof,           &log_anchor2_tof)
 LOG_GROUP_STOP(tdoa3)
