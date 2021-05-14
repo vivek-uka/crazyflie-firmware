@@ -126,7 +126,7 @@ static bool updateClockCorrection(tdoaAnchorContext_t* anchorCtx, const int64_t 
 }
 
 // [change] log every value to compute the TDOA meas.
-
+// We do not know the start time of tag and anchor, so that we can not compute two TOA separately and then get the tdoa meas.
 static int64_t calcTDoA(const tdoaAnchorContext_t* otherAnchorCtx, const tdoaAnchorContext_t* anchorCtx, const int64_t txAn_in_cl_An, const int64_t rxAn_by_T_in_cl_T) {
   const uint8_t otherAnchorId = tdoaStorageGetId(otherAnchorCtx);
 
