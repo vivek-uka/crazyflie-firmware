@@ -63,7 +63,7 @@ Therein, $$x_k$$ and $$y_k$$ are the system state and measurements at timestep k
 
 where $$e_{x,k,i}$$ and $$e_{y,k,i}$$ are the elements of $$e_{x,k}$$ and $$e_{y,k}$$. To reduce the influence of outliers, we incorporate a robust cost function into the Kalman filter framework as follows:
 
-<img src="/docs/images/rkf-eq3.png" alt="drawing" width="300"/>
+<img src="/docs/images/rkf-eq3.png" alt="drawing" width="450"/>
 
 where $$\rho()$$ could be any robust function (e.g., G-M, SC-DCS, Huber, Cauchy, etc.)
 
