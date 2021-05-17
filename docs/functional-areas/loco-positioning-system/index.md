@@ -18,23 +18,36 @@ When using the Loco Positioning System the [Kalman estimator](/docs/functional-a
 In TWR, the UWB tag mounted on the Crazyflie communicates with fixed UWB anchors and acquires range measurements through two-way communication. The measurement model is as follows: 
 
 $$d_i = \sqrt{(x-x_i)^2 +(y-y_i)^2 + (z-z_i)^2}$$,
+
 where $$(x, y, z)$$ is the position of the Crazyflie and $$(x_i, y_i, z_i)$$ is the position of the fixed anchor i. For the conventional extended Kalman filter, we have 
+
 $$g_x = (x-x_i) / d_i$$
+
 $$g_y = (y-y_i) / d_i$$
+
 $$g_z = (z-z_i) / d_i$$.
+
 The H vector is
+
 $$H = (g_x, g_y, g_z, 0, 0, 0, 0, 0, 0)$$.
 
 ### Time-difference-of-arrival (TDoA)
 In TDoA, UWB tags receive signals from anchors passively and compute the difference in distance beween two anchors as TDoA measurements. Since in TDoA scheme, UWB tags only listen to the messages from anchors, a TDoA-based localization system allows a theoretically unlimited number of robots to localize themselves with a small number of fixed anchors. However, TDoA measurements are more noisy than TWR measurements leading to a less accurate localization performance. Two types of TDoA protocols ([TDoA2](https://www.bitcraze.io/documentation/repository/lps-node-firmware/master/protocols/tdoa2_protocol/) and [TDoA3](https://www.bitcraze.io/documentation/repository/lps-node-firmware/master/protocols/tdoa3_protocol/)) are implemented. The main difference between the two TDoA protocols is that TDoA3 protocol achieves the scalability at the cost of localization accuracy. The readers are refer to [TDoA2 VS TDoA3](https://www.bitcraze.io/documentation/repository/lps-node-firmware/master/functional-areas/tdoa2-vs-tdoa3/) for detailed information. 
 
 The TDoA measurement model is as follows:
+
 $$d_{ij} = d_j - d_i=\sqrt{(x-x_j)^2 +(y-y_j)^2 + (z-z_j)^2} - \sqrt{(x-x_i)^2 +(y-y_i)^2 + (z-z_i)^2}$$,
+
 where $$(x, y, z)$$ is the position of the Crazyflie and $$(x_i, y_i, z_i)$$ and $$(x_j, y_j, z_j)$$ are the positions of fixed anchor i and j, respectively. For the conventional extended Kalman filter, we have
+
 $$g_x = (x-x_j) / d_j - (x-x_i) / d_i$$
+
 $$g_y = (y-y_j) / d_j - (y-y_i) / d_i$$
+
 $$g_z = (z-z_j) / d_j - (z-z_i) / d_i$$. 
-The H vector is 
+
+The H vector is
+
 $$H = (g_x, g_y, g_z, 0, 0, 0, 0, 0, 0)$$.
 
 ### M-estimation based robust Kalman filter
@@ -46,11 +59,11 @@ From the Bayesian maximum a posteriori perspective, the Kalman filter state esti
 
 Therein, $$x_k$$ and $$y_k$$ are the system state and measurements at timestep k, $$P_k$$ and $$R_k$$ denote the prior covariance and measurement covariance, respectively. Through Cholesky factorization of $$P_k$$ and $$R_k$$, the original optimization problem is equivalent to:
 
-<img src="/docs/images/rkf-eq2.png" alt="drawing" width="500"/>
+<img src="/docs/images/rkf-eq2.png" alt="drawing" width="450"/>
 
 where $$e_{x,k,i}$$ and $$e_{y,k,i}$$ are the elements of $$e_{x,k}$$ and $$e_{y,k}$$. To reduce the influence of outliers, we incorporate a robust cost function into the Kalman filter framework as follows:
 
-<img src="/docs/images/rkf-eq3.png" alt="drawing" width="500"/>
+<img src="/docs/images/rkf-eq3.png" alt="drawing" width="300"/>
 
 where $$\rho()$$ could be any robust function (e.g., G-M, SC-DCS, Huber, Cauchy, etc.)
 
