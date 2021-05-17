@@ -41,11 +41,17 @@ $$H = (g_x, g_y, g_z, 0, 0, 0, 0, 0, 0)$$.
 UWB radio signal suffers from outlier measurements caused by radio multi-path reflection and non-line-of-sight propagation. The large erroneous measurements often deteriorate the accuracy of UWB localization. The conventional Kalman filter is sensitive to measurement outliers due to its intrinsic minimum mean-square-error (MMSE) criterion. Here, we provide a robust estiamtion approach based on M-estimation robust cost function. We will explain the general idea of the robust Kalman filter and readers are encouraged to look into the firmware [mm_distance_robust](https://github.com/bitcraze/crazyflie-firmware/blob/master/src/modules/src/kalman_core/mm_distance_robust.c) and [mm_tdoa_robust](https://github.com/bitcraze/crazyflie-firmware/blob/master/src/modules/src/kalman_core/mm_tdoa_robust.c). Also read the paper of [1] for implementation details.
 
 From the Bayesian maximum a posteriori perspective, the Kalman filter state estimation framework can be derived by solving the following minimization problem:
+
 <img src="/docs/images/rkf-eq1.png" alt="drawing" width="500"/>
+
 Therein, $$x_k$$ and $$y_k$$ are the system state and measurements at timestep k, $$P_k$$ and $$R_k$$ denote the prior covariance and measurement covariance, respectively. Through Cholesky factorization of $$P_k$$ and $$R_k$$, the original optimization problem is equivalent to:
-![rkf eq2](/docs/images/rkf-eq2.png){:width="500"},
+
+<img src="/docs/images/rkf-eq2.png" alt="drawing" width="500"/>
+
 where $$e_{x,k,i}$$ and $$e_{y,k,i}$$ are the elements of $$e_{x,k}$$ and $$e_{y,k}$$. To reduce the influence of outliers, we incorporate a robust cost function into the Kalman filter framework as follows:
-![rkf eq3](/docs/images/rkf-eq3.png){:width="500"},
+
+<img src="/docs/images/rkf-eq3.png" alt="drawing" width="500"/>
+
 where $$\rho()$$ could be any robust function (e.g., G-M, SC-DCS, Huber, Cauchy, etc.)
 
 By introducing a weight function for the process and measurement uncertainties---with e as input---we can translate the optimization problem into an Iterative Reweight Least-Square (IRLS) problem. Then, the optimal posterior estimate can be computed through iteratively solving the least-square problem using the robust weights computed from the previous solution. In our implementation, we use the G-M robust cost function and the maximum iteration is set to be two for computational frugality. This functionality can be turned on through setting a parameter (robustTwr or robustTdoa) in [estimator_kalman.c](https://github.com/bitcraze/crazyflie-firmware/blob/master/src/modules/src/estimator_kalman.c).
