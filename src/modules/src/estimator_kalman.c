@@ -453,6 +453,13 @@ void estimatorKalmanGetEstimatedRot(float * rotationMatrix) {
   memcpy(rotationMatrix, coreData.R, 9*sizeof(float));
 }
 
+// [change] access current state and send through UWB (connect with lpsTdoa4Tag.c)
+void estimatorKalmanGetSharedInfo(float* x, float* y, float* z) {
+  *x = coreData.S[KC_STATE_X];
+  *y = coreData.S[KC_STATE_Y];
+  *z = coreData.S[KC_STATE_Z];
+}
+
 /**
  * Variables and results from the Extended Kalman Filter
  */

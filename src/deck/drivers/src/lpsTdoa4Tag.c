@@ -33,7 +33,7 @@ EVENTTRIGGER(interRange, uint8, remote_id, float, inter_ranging, float, rAgent_x
 static const uint8_t base_address[] = {0,0,0,0,0,0,0xcf,0xbc};
 
 // [change]: global variable for agent id
-int AGENT_ID = 1;                
+int AGENT_ID = 5;                
 // Agent msg context
 typedef struct {
     uint8_t id;
@@ -695,16 +695,14 @@ static void setTxData(dwDevice_t *dev)
     struct lppShortAgentPosition_s *pos = (struct lppShortAgentPosition_s*) &txPacket.payload[rangePacketSize + LPP_PAYLOAD];
     /*------ Send the info. of interest--------*/
     // For more agents and anchors, LPP packet size will be limited
-    float dummy_pos[3] = {(float)AGENT_ID+(float)0.15, (float)AGENT_ID+(float)0.25, (float)AGENT_ID+(float)0.35};
-    memcpy(pos->rAgent_pos, dummy_pos, 3 * sizeof(float));
+    // float dummy_pos[3] = {(float)AGENT_ID+(float)0.15, (float)AGENT_ID+(float)0.25, (float)AGENT_ID+(float)0.35};
+    // memcpy(pos->rAgent_pos, dummy_pos, 3 * sizeof(float));
 
-    /* if send more data in LPP */
-    // float dummy_quater[4] = {(float)AGENT_ID+(float)0.015, (float)AGENT_ID+(float)0.025, (float)AGENT_ID+(float)0.035, (float)AGENT_ID+(float)0.045};
-    // float dummy_imu[6] = {(float)AGENT_ID+(float)0.115, (float)AGENT_ID+(float)0.225, 
-    //                      (float)AGENT_ID+(float)0.335, (float)AGENT_ID+(float)0.445,
-    //                      (float)AGENT_ID+(float)0.555, (float)AGENT_ID+(float)0.665};
-    // memcpy(pos->quaternion, dummy_quater, 4 * sizeof(float));
-    // memcpy(pos->imu, dummy_imu, 6 * sizeof(float) );
+    /* share current position state from EKF using UWB*/
+    // consider a better data structure design
+    float shared_pos[3];  
+    estimatorKalmanGetSharedInfo(&shared_pos[0], &shared_pos[1], &shared_pos[2]);
+    memcpy(pos->rAgent_pos, shared_pos, 3 * sizeof(float));
     lppLength = 2 + sizeof(struct lppShortAgentPosition_s);
 
     dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH + rangePacketSize + lppLength);
