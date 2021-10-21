@@ -26,9 +26,9 @@
 #define LPP_PAYLOAD (LPP_HEADER + 2)
 // Useful constants
 static const uint8_t base_address[] = {0,0,0,0,0,0,0xcf,0xbc};
-// [New]: Gloabl variable for the mode of the Agent. The default is TDoA4 
 
-int AGENT_ID = 1;                // global variable for agent id
+// [Change]: global variable for agent id
+int AGENT_ID = 1;                
 // (mobile) Anchor context
 typedef struct {
     uint8_t id;
@@ -70,6 +70,7 @@ static struct ctx_s {
 
 //[Change]
 static bool rangingOk;
+
 // static tdoaEngineState_t engineState;
 typedef struct {
   uint8_t type;
@@ -113,15 +114,16 @@ static struct remoteAgentInfo_s{
     struct lppShortAnchorPosition_s remoteData;
     double ranging;
 }remoteAgentInfo;                //[re-design]
-//----------------------------------------------------------------------------------------//
-//[change]: log parameter
+
+//[DEBUG]: log parameter
 static float log_range;          // distance 
 static float log_imu[6]={0};     // remote imu
 static int   log_rAgentID;       // remote agent ID 
-/*--------------------------------------------------------------------*/
+
+
+/* ---------------------------- help functions ---------------------------- */
 static anchorContext_t* getContext(uint8_t anchorId) {
   uint8_t slot = ctx.anchorCtxLookup[anchorId];
-
   if (slot == ID_WITHOUT_CONTEXT) {
     return 0;
   }
@@ -313,20 +315,6 @@ static double calculateClockCorrection(anchorContext_t* anchorCtx, int remoteTxS
   return result;
 }
 
-static uint16_t calculateDistance(anchorContext_t* anchorCtx, int remoteRxSeqNr, uint32_t remoteTx, uint32_t remoteRx, uint32_t rx)
-{
-  // Check that the remote received seq nr is our latest tx seq nr
-  if (remoteRxSeqNr == ctx.seqNr && anchorCtx->clockCorrection > 0.0d) {
-    uint32_t localTime = rx - ctx.txTime;
-    uint32_t remoteTime = (uint32_t)((double)(remoteTx - remoteRx) * anchorCtx->clockCorrection);
-    uint32_t distance = (localTime - remoteTime) / 2;
-
-    return distance & 0xfffful;
-  } else {
-    return 0;
-  }
-}
-
 static bool extractFromPacket(const rangePacket3_t* rangePacket, uint32_t* remoteRx, uint8_t* remoteRxSeqNr) {
   const void* anchorDataPtr = &rangePacket->remoteAnchorData;
   // loop over all the remote agents' info
@@ -388,7 +376,24 @@ static bool updateClockCorrection(anchorContext_t* anchorCtx, double clockCorrec
 }
 
 
-//[New]: get the LPP transmitted data
+
+/* ------------------------------ Primary functions ------------------------------- */
+// [important] Computing TWR 
+static uint16_t calculateDistance(anchorContext_t* anchorCtx, int remoteRxSeqNr, uint32_t remoteTx, uint32_t remoteRx, uint32_t rx)
+{
+  // Check that the remote received seq nr is our latest tx seq nr
+  if (remoteRxSeqNr == ctx.seqNr && anchorCtx->clockCorrection > 0.0d) {
+    uint32_t localTime = rx - ctx.txTime;
+    uint32_t remoteTime = (uint32_t)((double)(remoteTx - remoteRx) * anchorCtx->clockCorrection);
+    uint32_t distance = (localTime - remoteTime) / 2;
+
+    return distance & 0xfffful;
+  } else {
+    return 0;
+  }
+}
+
+// [New]: get the LPP transmitted data, function #2
 static void handleLppShortPacket(const uint8_t *data, const int length) {
   uint8_t type = data[0];
   if (type == LPP_SHORT_ANCHORPOS) {
@@ -404,7 +409,7 @@ static void handleLppShortPacket(const uint8_t *data, const int length) {
     }
 }
 
-// [New]
+// [New]: get the LPP transmitted data, function #1
 static void handleLppPacket(const int dataLength, int rangePacketLength, const packet_t* rxPacket) {
     const int32_t payloadLength = dataLength - MAC802154_HEADER_LENGTH;
     const int32_t startOfLppDataInPayload = rangePacketLength;
@@ -423,8 +428,7 @@ static void handleLppPacket(const int dataLength, int rangePacketLength, const p
 
 // [New]: Update the remote agent info, also get the rangeDataLength --> for LPP packet
 // [Note]: store the remote agent info. for tdoa computation
-// [Note]: In tdoa4, the remote anchor infor. is not used (for tdoa range computing). 
-// This function is only used to extract the appended LPP msg
+// Currently, this function is only used to extract the appended LPP msg
 static int updateRemoteAgentData(const void* payload){
     const rangePacket3_t* packet = (rangePacket3_t*)payload;
     const void* anchorDataPtr = &packet->remoteAnchorData;
@@ -465,18 +469,18 @@ static int updateRemoteAgentData(const void* payload){
     return (uint8_t*)anchorDataPtr - (uint8_t*)packet;
 }
 
-//[note]: get range data from message
+// get range data from message
 static void handleRangePacket(const uint32_t rxTime, const packet_t* rxPacket, const int dataLength)
 {
   //[change] packet code is slightly different 
   //     in CF: locoAddress_t sourceAddress =>  uint64_t sourceAddress
   // in anchor: uint8_t sourceAddress[8]
   // similar to destAddress
-  const uint8_t remoteAnchorId = rxPacket->sourceAddress;
-  log_rAgentID = remoteAnchorId;           // [LOG] log the remote Agent ID (mobile anchor) 
+  const uint8_t remoteAnchorId = rxPacket->sourceAddress;             // remote Agent ID, where the packet was sent from.
+  log_rAgentID = remoteAnchorId;                                      // [LOG] log the remote Agent ID 
 
   ctx.anchorRxCount[remoteAnchorId]++;
-  anchorContext_t* anchorCtx = getContext(remoteAnchorId);
+  anchorContext_t* anchorCtx = getContext(remoteAnchorId);            // get the msg from the packet
   if (anchorCtx) {
     const rangePacket3_t* rangePacket = (rangePacket3_t *)rxPacket->payload;
 
@@ -486,34 +490,38 @@ static void handleRangePacket(const uint32_t rxTime, const packet_t* rxPacket, c
     double clockCorrection = calculateClockCorrection(anchorCtx, remoteTxSeqNr, remoteTx, rxTime);
     if (updateClockCorrection(anchorCtx, clockCorrection)) {
         anchorCtx->isDataGoodForTransmission = true;
-
         uint32_t remoteRx = 0;
         uint8_t remoteRxSeqNr = 0;
         bool dataFound = extractFromPacket(rangePacket, &remoteRx, &remoteRxSeqNr);
         if (dataFound) {
-            //[note]: here is the range distance data!
+            //[important]: here is the range distance data!
             uint16_t distance = calculateDistance(anchorCtx, remoteRxSeqNr, remoteTx, remoteRx, rxTime);
-            // TODO krri Remove outliers in distances
             if (distance > MIN_TOF) {
-            anchorCtx->distance = distance;     // The distance here is the tick count, need to time M_PER_TICK to compute range [m]
-            anchorCtx->distanceUpdateTime = xTaskGetTickCount();
-            //[note]: log range
-            float M_PER_TICK = 0.0046917639786157855;
-            // [LOG] log the ranging distance
-            log_range = (float) distance * M_PER_TICK - (float)ANTENNA_OFFSET;   // compute the range in meters. 
+                // The distance here is the tick count, need to time M_PER_TICK to compute range [m]
+                anchorCtx->distance = distance;     
+                anchorCtx->distanceUpdateTime = xTaskGetTickCount();
+                // meter per tick
+                float M_PER_TICK = 0.0046917639786157855;
+                // [LOG] log the ranging distance
+                // TODO: save {range, remoteAnchorId} 
+                log_range = (float) distance * M_PER_TICK - (float)ANTENNA_OFFSET;   // compute the range in meters. 
             }
         }
     } else {
         anchorCtx->isDataGoodForTransmission = false;
     }
-    // [change]
+    // [change] follow uwb_tdoa_anchor3.c in the anchor code
     rangingOk = anchorCtx->isDataGoodForTransmission;
     anchorCtx->rxTimeStamp = rxTime;
     anchorCtx->seqNr = remoteTxSeqNr;
     anchorCtx->txTimeStamp = remoteTx;
-    // [New] get transmitted info. (dummy quaternion)
-    int rangeDataLength = updateRemoteAgentData(rangePacket); 
+
+    // [important] get transmitted info. (dummy data for now)
+    // changed from lpsTdoa3Tag.c (rxcallback)
+    // since we have extracted the ranging info., here we only extract the LPP packets
+    int rangeDataLength = updateRemoteAgentData(rangePacket);   // get the length of LPP packets 
     handleLppPacket(dataLength, rangeDataLength, rxPacket);
+    
   }
 }
 
@@ -562,7 +570,7 @@ static void lppHandleShortPacket(uint8_t *data, size_t length)
     }
 }
 
-//[note]: main function after receive an uwb message
+// Main function after receive an uwb message
 static void handleRxPacket(dwDevice_t *dev)
 {
     //   int xEnd=0; int xDifference=0;
@@ -580,17 +588,16 @@ static void handleRxPacket(dwDevice_t *dev)
         return;
     }
     // DEBUG_PRINT("Receive radio packet \n");
-    switch(rxPacket.payload[0]) {
-    case PACKET_TYPE_TDOA4:       //[change]
-        // original code
-        handleRangePacket(rxTime.low32, &rxPacket, dataLength);   //[note] get range
+    switch(rxPacket.payload[0]) {                                 // check the header 
+    case PACKET_TYPE_TDOA4:       
+        handleRangePacket(rxTime.low32, &rxPacket, dataLength);   // get range and agent ID
         break;
-    case SHORT_LPP:  //[note]: handle SHORT_LPP msg
+    case SHORT_LPP:                                               // handle SHORT_LPP msg
         // [Note] Need the (int) in front of rxPacket.destAddress
         // DEBUG_PRINT("Receive Short LPP\n");
         // DEBUG_PRINT("rxPacket.destAddress is %d \n",(int)rxPacket.destAddress);
         // DEBUG_PRINT("ctx.anchorId is %d \n",(int)ctx.anchorId);
-        if ((int)rxPacket.destAddress == ctx.anchorId) {  // the lpp is sent to this Agent. 
+        if ((int)rxPacket.destAddress == ctx.anchorId) {          // the lpp is sent to this Agent. 
             // DEBUG_PRINT("Receive the correct Short LPP packet !!!!!!!!!!!!\n");
             // testing switch time//
             // xStart_s = T2M(xTaskGetTickCount());
@@ -603,6 +610,8 @@ static void handleRxPacket(dwDevice_t *dev)
     }
 }
 
+
+/* ---- low-level set-upc odes to receive and transmit UWB data----*/
 static void setupRx(dwDevice_t *dev)
 {
   dwNewReceive(dev);
@@ -646,6 +655,7 @@ static int populateTxData(rangePacket3_t *rangePacket)
 }
 
 // Set TX data in the radio TX buffer to send: sourceAddress, destAddress, LPP.position
+// [important]: transmit the LPP data
 static void setTxData(dwDevice_t *dev)
 {
   static packet_t txPacket;
@@ -685,7 +695,6 @@ static void setTxData(dwDevice_t *dev)
     dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH + rangePacketSize + lppLength);
 }
 
-// Setup the radio to send a packet
 static void setupTx(dwDevice_t *dev)
 {
     dwTime_t txTime = findTransmitTimeAsSoonAsPossible(dev);
@@ -732,20 +741,18 @@ static uint32_t startNextEvent(dwDevice_t *dev, uint32_t now)
 //   estimatorKalmanEnqueueTDOA(tdoaMeasurement);
 // }
 
-//------------------------------------------------------------------//
-// Initialize/reset the agorithm
+//------------------------- Init and Event ----------------------------------//
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-// [change]: in CF algorithm, the init only has dwDevice, don't have config
+// Initialize
 static void tdoa4Init(dwDevice_t *dev)
 {
     dwSetReceiveWaitTimeout(dev, TDOA4_RECEIVE_TIMEOUT);
-
     dwCommitConfiguration(dev);
 
     rangingOk = false;
     // manually set the Agent ID
-    ctx.anchorId = AGENT_ID;   // ID of the agent
+    ctx.anchorId = AGENT_ID;   
     ctx.seqNr = 0;
     ctx.txTime = 0;
     ctx.nextTxTick = 0;
@@ -757,14 +764,11 @@ static void tdoa4Init(dwDevice_t *dev)
     for (int i = 0; i < ANCHOR_STORAGE_COUNT; i++) {
         ctx.anchorCtx[i].isUsed = false;
     }
-
     clearAnchorRxCount();
-
     srand(ctx.anchorId);
 }
-//------------------------------------------------------------------//
 
-// Called for each DW radio event
+// TDOA4 Event
 static uint32_t tdoa4UwbEvent(dwDevice_t *dev, uwbEvent_t event)
 {
     //   int xStart=0; int xEnd=0; int xDifference=0;
@@ -796,7 +800,7 @@ static bool isRangingOk()
 
 static bool getAnchorPosition(const uint8_t anchorId, point_t* position) {
 
-    // a walk around. For relative ranging ability, we don't need anchor position info.
+    // a walk around. 
 
     return true;
 }
@@ -805,7 +809,7 @@ static bool getAnchorPosition(const uint8_t anchorId, point_t* position) {
 // [Change]: Move the updateAnchorLists() function from anchor code
 static uint8_t getAnchorIdList(uint8_t unorderedAnchorList[], const int maxListSize) {
     // get the anchor id num that I received msg from.
-    // dn not need to use the inputs: uint8_t unorderedAnchorList[], const int maxListSize
+    // do not need to use the inputs: uint8_t unorderedAnchorList[], const int maxListSize
     static uint8_t availableId[ID_COUNT];
     static bool availableUsed[ID_COUNT];
     memset(availableId, 0, sizeof(availableId));
