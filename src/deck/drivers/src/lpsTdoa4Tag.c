@@ -8,7 +8,7 @@
 */
 
 #include <string.h>
-#include <stdlib.h>   // [change] for rand() function 
+#include <stdlib.h>               // [change] for rand() function 
 #include "FreeRTOS.h"
 #include "task.h"
 #include "libdw1000.h"
@@ -17,7 +17,12 @@
 #include "log.h"
 #include "debug.h"
 #include "estimator_kalman.h"
-//[change]
+#include "eventtrigger.h"        // add eventtrigger logging
+
+// declare events
+EVENTTRIGGER(interRange, uint8, remote_id, float, inter_ranging, float, rAgent_x, float, rAgent_y, float, rAgent_z)
+
+
 #define TDOA4_RECEIVE_TIMEOUT 10000
 // Packet formats
 #define PACKET_TYPE_TDOA4 0x60                      // [Change]
@@ -27,9 +32,9 @@
 // Useful constants
 static const uint8_t base_address[] = {0,0,0,0,0,0,0xcf,0xbc};
 
-// [Change]: global variable for agent id
+// [change]: global variable for agent id
 int AGENT_ID = 1;                
-// (mobile) Anchor context
+// Agent msg context
 typedef struct {
     uint8_t id;
     bool isUsed;
@@ -68,7 +73,7 @@ static struct ctx_s {
     uint8_t anchorRxCount[ID_COUNT];
 } ctx;
 
-//[Change]
+//[change]
 static bool rangingOk;
 
 // static tdoaEngineState_t engineState;
@@ -98,26 +103,22 @@ typedef struct {
 } __attribute__((packed)) rangePacket3_t;
 
 // lppShortAnchorPos_s is defined in locodeck.h, here we define a new msg for TDoA4 
-// [New] lpp packet (transmission data): limitation is 11 float num
-struct lppShortAnchorPosition_s {
-    float position[3];
-    float quaternion[4];
-    float imu[6];
+// [New] lpp packet (transmission data): limitation is 11 float num (TODO: validate)
+struct lppShortAgentPosition_s {
+    float rAgent_pos[3];
 } __attribute__((packed));
-// [New] Define a struct containing the info of remote "anchor" --> agent
-// global variable
-/*------ it is not used for now. Will organize TDOA4 code for inter-drone ranging only---*/
+
+// Data struct for remote agent info 
 static struct remoteAgentInfo_s{
-    int remoteAgentID;           // source Agent 
-    int destAgentID;             // destination Agent
+    uint8_t remoteAgentID;           // source Agent (where the msg is sent from)
+    int destAgentID;             // destination Agent (where the msg is sent to)
     bool hasDistance;
-    struct lppShortAnchorPosition_s remoteData;
-    double ranging;
-}remoteAgentInfo;                //[re-design]
+    struct lppShortAgentPosition_s remoteData;
+    float ranging;
+}remoteAgentInfo;                
 
 //[DEBUG]: log parameter
 static float log_range;          // distance 
-static float log_imu[6]={0};     // remote imu
 static int   log_rAgentID;       // remote agent ID 
 
 
@@ -397,15 +398,17 @@ static uint16_t calculateDistance(anchorContext_t* anchorCtx, int remoteRxSeqNr,
 static void handleLppShortPacket(const uint8_t *data, const int length) {
   uint8_t type = data[0];
   if (type == LPP_SHORT_ANCHORPOS) {
-    struct lppShortAnchorPosition_s *rData = (struct lppShortAnchorPosition_s*)&data[1];
-    // printf("Position data is: (%f,%f,%f) \r\n", pos->x, pos->y, pos->z);
-    // save and use the remote angent data                 # [LOG]: log imu parameter
-    remoteAgentInfo.remoteData.imu[0] = rData->imu[0];     log_imu[0] = rData->imu[0];
-    remoteAgentInfo.remoteData.imu[1] = rData->imu[1];     log_imu[1] = rData->imu[1];
-    remoteAgentInfo.remoteData.imu[2] = rData->imu[2];     log_imu[2] = rData->imu[2];
-    remoteAgentInfo.remoteData.imu[3] = rData->imu[3];     log_imu[3] = rData->imu[3];
-    remoteAgentInfo.remoteData.imu[4] = rData->imu[4];     log_imu[4] = rData->imu[4];
-    remoteAgentInfo.remoteData.imu[5] = rData->imu[5];     log_imu[5] = rData->imu[5];
+    struct lppShortAgentPosition_s *rData = (struct lppShortAgentPosition_s*)&data[1];
+        // save and use the remote agent pos data                 
+        remoteAgentInfo.remoteData.rAgent_pos[0] = rData->rAgent_pos[0];     
+        remoteAgentInfo.remoteData.rAgent_pos[1] = rData->rAgent_pos[1];     
+        remoteAgentInfo.remoteData.rAgent_pos[2] = rData->rAgent_pos[2];     
+    }
+    else{
+        // no remote agent pos data
+        remoteAgentInfo.remoteData.rAgent_pos[0] = 255;     
+        remoteAgentInfo.remoteData.rAgent_pos[1] = 255;     
+        remoteAgentInfo.remoteData.rAgent_pos[2] = 255; 
     }
 }
 
@@ -456,7 +459,7 @@ static int updateRemoteAgentData(const void* payload){
 
         //     uint8_t anchorId = tdoaStorageGetId(anchorCtx);
         //     tdoaStats_t* stats = &engineState.stats;
-        //     if (anchorId == stats->anchorId && remoteId == stats->remoteAnchorId) {
+        //     if (anchorId == stats->anchorId && remoteId == stats->remote_id) {
         //     stats->tof = (uint16_t)tof;
         //     }
         // }
@@ -476,11 +479,13 @@ static void handleRangePacket(const uint32_t rxTime, const packet_t* rxPacket, c
   //     in CF: locoAddress_t sourceAddress =>  uint64_t sourceAddress
   // in anchor: uint8_t sourceAddress[8]
   // similar to destAddress
-  const uint8_t remoteAnchorId = rxPacket->sourceAddress;             // remote Agent ID, where the packet was sent from.
-  log_rAgentID = remoteAnchorId;                                      // [LOG] log the remote Agent ID 
+  const uint8_t remote_id = rxPacket->sourceAddress;             // remote Agent ID, where the packet was sent from.
+  log_rAgentID = remote_id;                                      // [LOG] log the remote Agent ID 
 
-  ctx.anchorRxCount[remoteAnchorId]++;
-  anchorContext_t* anchorCtx = getContext(remoteAnchorId);            // get the msg from the packet
+  remoteAgentInfo.remoteAgentID = remote_id;                     // save to remoteAgent data structure
+
+  ctx.anchorRxCount[remote_id]++;
+  anchorContext_t* anchorCtx = getContext(remote_id);            // get the msg from the packet
   if (anchorCtx) {
     const rangePacket3_t* rangePacket = (rangePacket3_t *)rxPacket->payload;
 
@@ -503,8 +508,24 @@ static void handleRangePacket(const uint32_t rxTime, const packet_t* rxPacket, c
                 // meter per tick
                 float M_PER_TICK = 0.0046917639786157855;
                 // [LOG] log the ranging distance
-                // TODO: save {range, remoteAnchorId} 
-                log_range = (float) distance * M_PER_TICK - (float)ANTENNA_OFFSET;   // compute the range in meters. 
+
+                remoteAgentInfo.ranging = (float) distance * M_PER_TICK - (float)ANTENNA_OFFSET;   // save the range in meters. 
+                log_range = remoteAgentInfo.ranging;
+
+                // only extract remote agent pos and event logging when we have valid ranging info.
+                // [important] get transmitted info. (dummy data for now)  (changed from lpsTdoa3Tag.c (rxcallback))
+                // since we have extracted the ranging info., here we only extract the LPP packets
+                int rangeDataLength = updateRemoteAgentData(rangePacket);   // get the length of LPP packets 
+                handleLppPacket(dataLength, rangeDataLength, rxPacket);
+
+                // After (1) get remoteAgent ID, (2) compute the ranging, and (3) get the remoteAgent pos
+                // call Event trigger logging
+                eventTrigger_interRange_payload.remote_id = remoteAgentInfo.remoteAgentID;
+                eventTrigger_interRange_payload.inter_ranging = remoteAgentInfo.ranging;
+                eventTrigger_interRange_payload.rAgent_x = remoteAgentInfo.remoteData.rAgent_pos[0];
+                eventTrigger_interRange_payload.rAgent_y = remoteAgentInfo.remoteData.rAgent_pos[1];
+                eventTrigger_interRange_payload.rAgent_z = remoteAgentInfo.remoteData.rAgent_pos[2];
+                eventTrigger(&eventTrigger_interRange);
             }
         }
     } else {
@@ -515,13 +536,6 @@ static void handleRangePacket(const uint32_t rxTime, const packet_t* rxPacket, c
     anchorCtx->rxTimeStamp = rxTime;
     anchorCtx->seqNr = remoteTxSeqNr;
     anchorCtx->txTimeStamp = remoteTx;
-
-    // [important] get transmitted info. (dummy data for now)
-    // changed from lpsTdoa3Tag.c (rxcallback)
-    // since we have extracted the ranging info., here we only extract the LPP packets
-    int rangeDataLength = updateRemoteAgentData(rangePacket);   // get the length of LPP packets 
-    handleLppPacket(dataLength, rangeDataLength, rxPacket);
-    
   }
 }
 
@@ -678,19 +692,20 @@ static void setTxData(dwDevice_t *dev)
     txPacket.payload[rangePacketSize + LPP_HEADER] = SHORT_LPP;
     txPacket.payload[rangePacketSize + LPP_TYPE] = LPP_SHORT_AGENT_INFO;   // [Change] define a new type for tdoa4 inter-drone msg
 
-    struct lppShortAnchorPosition_s *pos = (struct lppShortAnchorPosition_s*) &txPacket.payload[rangePacketSize + LPP_PAYLOAD];
+    struct lppShortAgentPosition_s *pos = (struct lppShortAgentPosition_s*) &txPacket.payload[rangePacketSize + LPP_PAYLOAD];
     /*------ Send the info. of interest--------*/
-    // test with dummy positions, quater, imu. For more agents and anchors, 
-    // LPP packet size will be limited
+    // For more agents and anchors, LPP packet size will be limited
     float dummy_pos[3] = {(float)AGENT_ID+(float)0.15, (float)AGENT_ID+(float)0.25, (float)AGENT_ID+(float)0.35};
-    float dummy_quater[4] = {(float)AGENT_ID+(float)0.015, (float)AGENT_ID+(float)0.025, (float)AGENT_ID+(float)0.035, (float)AGENT_ID+(float)0.045};
-    float dummy_imu[6] = {(float)AGENT_ID+(float)0.115, (float)AGENT_ID+(float)0.225, 
-                          (float)AGENT_ID+(float)0.335, (float)AGENT_ID+(float)0.445,
-                          (float)AGENT_ID+(float)0.555, (float)AGENT_ID+(float)0.665};
-    memcpy(pos->position, dummy_pos, 3 * sizeof(float));
-    memcpy(pos->quaternion, dummy_quater, 4 * sizeof(float));
-    memcpy(pos->imu, dummy_imu, 6 * sizeof(float) );
-    lppLength = 2 + sizeof(struct lppShortAnchorPosition_s);
+    memcpy(pos->rAgent_pos, dummy_pos, 3 * sizeof(float));
+
+    /* if send more data in LPP */
+    // float dummy_quater[4] = {(float)AGENT_ID+(float)0.015, (float)AGENT_ID+(float)0.025, (float)AGENT_ID+(float)0.035, (float)AGENT_ID+(float)0.045};
+    // float dummy_imu[6] = {(float)AGENT_ID+(float)0.115, (float)AGENT_ID+(float)0.225, 
+    //                      (float)AGENT_ID+(float)0.335, (float)AGENT_ID+(float)0.445,
+    //                      (float)AGENT_ID+(float)0.555, (float)AGENT_ID+(float)0.665};
+    // memcpy(pos->quaternion, dummy_quater, 4 * sizeof(float));
+    // memcpy(pos->imu, dummy_imu, 6 * sizeof(float) );
+    lppLength = 2 + sizeof(struct lppShortAgentPosition_s);
 
     dwSetData(dev, (uint8_t*)&txPacket, MAC802154_HEADER_LENGTH + rangePacketSize + lppLength);
 }
@@ -883,15 +898,9 @@ uwbAlgorithm_t uwbTdoa4TagAlgorithm = { // [change]: the name changed
     .getActiveAnchorIdList = getActiveAnchorIdList,
 };
 
-//[note]: Add inter-drone range logging
+// Add inter-drone range logging
 LOG_GROUP_START(tdoa4)
 LOG_ADD(LOG_FLOAT, inter_range,  &log_range)
-LOG_ADD(LOG_FLOAT, acc_x,        &log_imu[0])
-LOG_ADD(LOG_FLOAT, acc_y,        &log_imu[1])
-LOG_ADD(LOG_FLOAT, acc_z,        &log_imu[2])
-LOG_ADD(LOG_FLOAT, gyro_x,       &log_imu[3])
-LOG_ADD(LOG_FLOAT, gyro_y,       &log_imu[4])
-LOG_ADD(LOG_FLOAT, gyro_z,       &log_imu[5])
 LOG_ADD(LOG_INT16, rAgentID,     &log_rAgentID)
 LOG_GROUP_STOP(tdoa4)
 
