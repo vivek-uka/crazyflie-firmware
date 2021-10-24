@@ -397,7 +397,7 @@ static uint16_t calculateDistance(anchorContext_t* anchorCtx, int remoteRxSeqNr,
 // [New]: get the LPP transmitted data, function #2
 static void handleLppShortPacket(const uint8_t *data, const int length) {
   uint8_t type = data[0];
-  if (type == LPP_SHORT_ANCHORPOS) {
+  if (type == LPP_SHORT_AGENT_INFO) {
     struct lppShortAgentPosition_s *rData = (struct lppShortAgentPosition_s*)&data[1];
         // save and use the remote agent pos data                 
         remoteAgentInfo.remoteData.rAgent_pos[0] = rData->rAgent_pos[0];     
