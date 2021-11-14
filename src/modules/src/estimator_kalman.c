@@ -120,6 +120,9 @@ static StaticSemaphore_t dataMutexBuffer;
 static bool robustTwr = false;
 static bool robustTdoa = false;
 
+// disable sensors for CF Bolt testing
+static bool enableSensors = false;
+
 /**
  * Quadrocopter State
  *
@@ -349,14 +352,16 @@ static bool updateQueuedMeasurements(const uint32_t tick) {
   while (estimatorDequeue(&m)) {
     switch (m.type) {
       case MeasurementTypeTDOA:
-        if(robustTdoa){
-          // robust KF update with TDOA measurements
-          kalmanCoreRobustUpdateWithTDOA(&coreData, &m.data.tdoa);
-        }else{
-          // standard KF update
-          kalmanCoreUpdateWithTDOA(&coreData, &m.data.tdoa);
-        }
-        doneUpdate = true;
+       if(enableSensors){
+          if(robustTdoa){
+            // robust KF update with TDOA measurements
+            kalmanCoreRobustUpdateWithTDOA(&coreData, &m.data.tdoa);
+          }else{
+            // standard KF update
+            kalmanCoreUpdateWithTDOA(&coreData, &m.data.tdoa);
+          }
+          doneUpdate = true;
+       }
         break;
       case MeasurementTypePosition:
         kalmanCoreUpdateWithPosition(&coreData, &m.data.position);
@@ -367,34 +372,46 @@ static bool updateQueuedMeasurements(const uint32_t tick) {
         doneUpdate = true;
         break;
       case MeasurementTypeDistance:
-        if(robustTwr){
-            // robust KF update with UWB TWR measurements
-            kalmanCoreRobustUpdateWithDistance(&coreData, &m.data.distance);
-        }else{
-            // standard KF update
-            kalmanCoreUpdateWithDistance(&coreData, &m.data.distance);
-        }
-        doneUpdate = true;
+       if(enableSensors){
+          if(robustTwr){
+              // robust KF update with UWB TWR measurements
+              kalmanCoreRobustUpdateWithDistance(&coreData, &m.data.distance);
+          }else{
+              // standard KF update
+              kalmanCoreUpdateWithDistance(&coreData, &m.data.distance);
+          }
+          doneUpdate = true;
+       }
         break;
       case MeasurementTypeTOF:
-        kalmanCoreUpdateWithTof(&coreData, &m.data.tof);
-        doneUpdate = true;
+        if(enableSensors){
+          kalmanCoreUpdateWithTof(&coreData, &m.data.tof);
+          doneUpdate = true;
+        }
         break;
       case MeasurementTypeAbsoluteHeight:
-        kalmanCoreUpdateWithAbsoluteHeight(&coreData, &m.data.height);
-        doneUpdate = true;
+        if(enableSensors){
+          kalmanCoreUpdateWithAbsoluteHeight(&coreData, &m.data.height);
+          doneUpdate = true;
+        }
         break;
       case MeasurementTypeFlow:
-        kalmanCoreUpdateWithFlow(&coreData, &m.data.flow, &gyroLatest);
-        doneUpdate = true;
+        if(enableSensors){
+          kalmanCoreUpdateWithFlow(&coreData, &m.data.flow, &gyroLatest);
+          doneUpdate = true;
+        }
         break;
       case MeasurementTypeYawError:
-        kalmanCoreUpdateWithYawError(&coreData, &m.data.yawError);
-        doneUpdate = true;
+        if(enableSensors){
+          kalmanCoreUpdateWithYawError(&coreData, &m.data.yawError);
+          doneUpdate = true;
+        }
         break;
       case MeasurementTypeSweepAngle:
-        kalmanCoreUpdateWithSweepAngles(&coreData, &m.data.sweepAngle, tick, &sweepOutlierFilterState);
-        doneUpdate = true;
+        if(enableSensors){
+          kalmanCoreUpdateWithSweepAngles(&coreData, &m.data.sweepAngle, tick, &sweepOutlierFilterState);
+          doneUpdate = true;
+        }
         break;
       case MeasurementTypeGyroscope:
         gyroAccumulator.x += m.data.gyroscope.gyro.x;
@@ -411,7 +428,7 @@ static bool updateQueuedMeasurements(const uint32_t tick) {
         accAccumulatorCount++;
         break;
       case MeasurementTypeBarometer:
-        if (useBaroUpdate) {
+        if (enableSensors && useBaroUpdate) {
           kalmanCoreUpdateWithBaro(&coreData, &coreParams, m.data.barometer.baro.asl, quadIsFlying);
           doneUpdate = true;
         }
