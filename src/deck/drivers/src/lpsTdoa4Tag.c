@@ -33,7 +33,7 @@ EVENTTRIGGER(interRange, uint8, remote_id, float, inter_ranging, float, rAgent_x
 static const uint8_t base_address[] = {0,0,0,0,0,0,0xcf,0xbc};
 
 // [change]: global variable for agent id
-int AGENT_ID = 5;                
+int AGENT_ID = 2;                
 // Agent msg context
 typedef struct {
     uint8_t id;
@@ -669,7 +669,7 @@ static int populateTxData(rangePacket3_t *rangePacket)
 }
 
 // Set TX data in the radio TX buffer to send: sourceAddress, destAddress, LPP.position
-// [important]: transmit the LPP data
+// [important]: transmit the UWB packet 
 static void setTxData(dwDevice_t *dev)
 {
   static packet_t txPacket;

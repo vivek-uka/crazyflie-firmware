@@ -89,6 +89,9 @@
 //[Change]
 #define ANTENNA_OFFSET 154.6   // In meter
 #define LPS_TDOA4_ENABLE 1     // force to use tdoa4
+#define LPS_TDOA3_ENABLE 0     
+#define LPS_TDOA_ENABLE 0     
+#define LPS_TWR_ENABLE 0
 
 // The anchor position can be set using parameters
 // As an option you can set a static position in this file and set
