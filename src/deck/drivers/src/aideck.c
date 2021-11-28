@@ -86,16 +86,80 @@ static void Gap8Task(void *param)
     vTaskDelay(M2T(1000));
 
     // Pull the reset button to get a clean read out of the data
-    pinMode(DECK_GPIO_IO4, OUTPUT);
-    digitalWrite(DECK_GPIO_IO4, LOW);
-    vTaskDelay(10);
-    digitalWrite(DECK_GPIO_IO4, HIGH);
-    pinMode(DECK_GPIO_IO4, INPUT_PULLUP);
+    // pinMode(DECK_GPIO_IO4, OUTPUT);
+    // digitalWrite(DECK_GPIO_IO4, LOW);
+    // vTaskDelay(10);
+    // digitalWrite(DECK_GPIO_IO4, HIGH);
+    // pinMode(DECK_GPIO_IO4, INPUT_PULLUP);
 
-    // Read out the byte the Gap8 sends and immediately send it to the console.
+    static logVarId_t logIdacc_x;
+    static logVarId_t logIdacc_y;
+    static logVarId_t logIdacc_z;
+    static logVarId_t logIdgyro_x;
+    static logVarId_t logIdgyro_y;
+    static logVarId_t logIdgyro_z;
+
+    // get the values from log framework
+    logIdacc_x = logGetVarId("acc", "x");
+    logIdacc_y = logGetVarId("acc", "y");
+    logIdacc_z = logGetVarId("acc", "z");
+    logIdgyro_x = logGetVarId("gyro", "x");
+    logIdgyro_y = logGetVarId("gyro", "y");
+    logIdgyro_z = logGetVarId("gyro", "z");
+
+    unsigned char packet[28];
+    packet[0] = 0xfe;
+    packet[1] = 0xfe;
+    packet[26] = 0xfe;
+    packet[27] = 0xfe;
+    
     while (1)
     {
-        uart1GetDataWithDefaultTimeout(&byte);
+        // Read out the byte the Gap8 sends and immediately send it to the console.
+        // uart1GetDataWithDefaultTimeout(&byte);
+        float acc_x = logGetFloat(logIdacc_x);
+        float acc_y = logGetFloat(logIdacc_y);
+        float acc_z = logGetFloat(logIdacc_z);
+        float gyro_x = logGetFloat(logIdgyro_x);
+        float gyro_y = logGetFloat(logIdgyro_y);
+        float gyro_z = logGetFloat(logIdgyro_z);
+        union {
+            float a;
+            unsigned char bytes[4];
+        } thing;
+        thing.a = acc_x;
+        for(uint16_t i=0; i<4; i++)
+        {
+            packet[2+i] = thing.bytes[i];
+        }
+        thing.a = acc_y;
+        for(uint16_t i=0; i<4; i++)
+        {
+            packet[6+i] = thing.bytes[i];
+        }
+        thing.a = acc_z;
+        for(uint16_t i=0; i<4; i++)
+        {
+            packet[10+i] = thing.bytes[i];
+        }
+        thing.a = gyro_x;
+        for(uint16_t i=0; i<4; i++)
+        {
+            packet[14+i] = thing.bytes[i];
+        }
+        thing.a = gyro_y;
+        for(uint16_t i=0; i<4; i++)
+        {
+            packet[18+i] = thing.bytes[i];
+        }
+        thing.a = gyro_z;
+        for(uint16_t i=0; i<4; i++)
+        {
+            packet[22+i] = thing.bytes[i];
+        }
+        uart1SendData(28, packet);
+        // vTaskDelay(M2T((rand()%10) + 20));
+        vTaskDelay(M2T(40));
     }
 }
 
