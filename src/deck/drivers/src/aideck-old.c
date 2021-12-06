@@ -80,84 +80,50 @@ static void NinaTask(void *param)
 }
 #endif
 
+
+#define BUFFERSIZE 1 
+uint8_t aideckRxBuffer[BUFFERSIZE];
+volatile uint8_t dma_flag=0;
+
+
+void USART_DMA_Start(uint32_t baudrate, uint8_t *pulpRxBuffer, uint32_t BUFFERSIZE)
+{
+    USART_Config(baudrate, pulpRxBuffer, BUFFERSIZE);
+
+    DMA_ITConfig(USARTx_)
+}
+
 static void Gap8Task(void *param)
 {
     systemWaitStart();
     vTaskDelay(M2T(1000));
 
-    static logVarId_t logHeight;
+    // Pull the reset button to get a clean read out of the data
+    pinMode(DECK_GPIO_IO4, OUTPUT);
+    digitalWrite(DECK_GPIO_IO4, LOW);
+    vTaskDelay(10);
+    digitalWrite(DECK_GPIO_IO4, HIGH);
+    pinMode(DECK_GPIO_IO4, INPUT_PULLUP);
 
-    // get the values from log framework
-    logHeight = logGetVarId("stateEstimate", "z");
+    // interupt
+    USART_DMA_Start(115200, aideckRxBuffer, BUFFERSIZE);
 
-    unsigned char packet[12];
-    packet[0] = 0xfe;
-    packet[1] = 0xfe;
-
-    packet[10] = 0xfe;
-    packet[11] = 0xfe;
-
-    // packet[26] = 0xfe;
-    // packet[27] = 0xfe;
-
+    // Read out the byte the Gap8 sends and immediately send it to the console.
     while (1)
     {
-        // Read out the byte the Gap8 sends and immediately send it to the console.
-        // uart1GetDataWithDefaultTimeout(&byte);
-
-
-        float height =  logGetFloat(logHeight);
-
-        // get current os time tick
-        uint32_t osTick = xTaskGetTickCount();   // 32 bits --> 4 bytes -- the same with "float"
-        // float time_tick = (float) osTick;
-
-        // --- debug: send dummy variables --- //
-        // time_tick = 10.0f;
-        // height = 0.7f;
-
-        union {
-            float a;
-            unsigned char bytes[4];
-        } thing;
-
-        // thing.a = time_tick;                     // test
-        thing.a = osTick;                     // test
-        for(uint16_t i=0; i<4; i++)
+        vTaskDelay(M2T(1000));
+        if (dma_flag ==1)
         {
-            packet[2+i] = thing.bytes[i];
+        DEBUG_PRINT("Counter: %d\n", aideckRxBuffer[0]);
+        uart1GetDataWithDefaultTimeout(&byte);
         }
-
-        thing.a = height;
-        for(uint16_t i=0; i<4; i++)
-        {
-            packet[6+i] = thing.bytes[i];
-        }
-
-        // thing.a = acc_z;
-        // for(uint16_t i=0; i<4; i++)
-        // {
-        //     packet[10+i] = thing.bytes[i];
-        // }
-        // thing.a = gyro_x;
-        // for(uint16_t i=0; i<4; i++)
-        // {
-        //     packet[14+i] = thing.bytes[i];
-        // }
-        // thing.a = gyro_y;
-        // for(uint16_t i=0; i<4; i++)
-        // {
-        //     packet[18+i] = thing.bytes[i];
-        // }
-        // thing.a = gyro_z;
-        // for(uint16_t i=0; i<4; i++)
-        // {
-        //     packet[22+i] = thing.bytes[i];
-        // }
-        uart1SendData(12, packet);          // 4 + 4 x n --> for only 2 floats, we have 12
-        // vTaskDelay(M2T((rand()%10) + 20));
-        vTaskDelay(M2T(40));
     }
+}
+
+// DMA "full buffer" interrupt
+void __attribute__((used)) DMA1_Stream1_IRQHandler(void){
+    DMA_ClearFlag(DMA1_Stream1, UART3_RX_DMA_ALL_FLAGS);
+    dma_flag = 1;
 }
 
 static void aideckInit(DeckInfo *info)
