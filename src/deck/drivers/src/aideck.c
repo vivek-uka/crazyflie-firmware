@@ -92,16 +92,19 @@ static void Gap8Task(void *param)
     // digitalWrite(DECK_GPIO_IO4, HIGH);
     // pinMode(DECK_GPIO_IO4, INPUT_PULLUP);
 
-    static logVarId_t logIdacc_x;
-    static logVarId_t logIdacc_y;
+    // static logVarId_t logIdacc_x;
+    // static logVarId_t logIdacc_y;
+    static logVarId_t logHeight;
     static logVarId_t logIdacc_z;
     static logVarId_t logIdgyro_x;
     static logVarId_t logIdgyro_y;
     static logVarId_t logIdgyro_z;
 
     // get the values from log framework
-    logIdacc_x = logGetVarId("acc", "x");
-    logIdacc_y = logGetVarId("acc", "y");
+    // logIdacc_x = logGetVarId("acc", "x");
+    // logIdacc_y = logGetVarId("acc", "y");
+
+    logHeight = logGetVarId("kalman", "stateZ");
     logIdacc_z = logGetVarId("acc", "z");
     logIdgyro_x = logGetVarId("gyro", "x");
     logIdgyro_y = logGetVarId("gyro", "y");
@@ -112,27 +115,37 @@ static void Gap8Task(void *param)
     packet[1] = 0xfe;
     packet[26] = 0xfe;
     packet[27] = 0xfe;
-    
+
     while (1)
     {
         // Read out the byte the Gap8 sends and immediately send it to the console.
         // uart1GetDataWithDefaultTimeout(&byte);
-        float acc_x = logGetFloat(logIdacc_x);
-        float acc_y = logGetFloat(logIdacc_y);
+
+        // float acc_x = logGetFloat(logIdacc_x);
+        // float acc_y = logGetFloat(logIdacc_y);
+
+        float height =  logGetFloat(logHeight);
+
         float acc_z = logGetFloat(logIdacc_z);
         float gyro_x = logGetFloat(logIdgyro_x);
         float gyro_y = logGetFloat(logIdgyro_y);
         float gyro_z = logGetFloat(logIdgyro_z);
+
+        // get current os time tick
+        uint32_t osTick = xTaskGetTickCount();   // 32 bits --> 4 bytes -- the same with "float"
+        float time_tick = (float) osTick;
+
         union {
             float a;
             unsigned char bytes[4];
         } thing;
-        thing.a = acc_x;
+        thing.a = time_tick;                     // test
+
         for(uint16_t i=0; i<4; i++)
         {
             packet[2+i] = thing.bytes[i];
         }
-        thing.a = acc_y;
+        thing.a = height;
         for(uint16_t i=0; i<4; i++)
         {
             packet[6+i] = thing.bytes[i];
