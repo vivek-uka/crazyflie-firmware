@@ -50,6 +50,8 @@
 static bool isInit = false;
 static uint8_t byte;
 
+static bool startLogging=0;   // param. sent from ground station to start ai deck logging
+
 //Uncomment when NINA printout read is desired from console
 //#define DEBUG_NINA_PRINT
 
@@ -85,10 +87,10 @@ static void Gap8Task(void *param)
     systemWaitStart();
     vTaskDelay(M2T(1000));
 
-    static logVarId_t logHeight;
+    // static logVarId_t logHeight;
 
     // get the values from log framework
-    logHeight = logGetVarId("stateEstimate", "z");
+    // logHeight = logGetVarId("stateEstimate", "z");
 
     unsigned char packet[12];
     packet[0] = 0xfe;
@@ -106,11 +108,11 @@ static void Gap8Task(void *param)
         // uart1GetDataWithDefaultTimeout(&byte);
 
 
-        float height =  logGetFloat(logHeight);
+        float height =  (float) startLogging;
 
         // get current os time tick
         uint32_t osTick = xTaskGetTickCount();   // 32 bits --> 4 bytes -- the same with "float"
-        // float time_tick = (float) osTick;
+        // float time_tick = (float) osTick;     // is this conversion legal ?
 
         // --- debug: send dummy variables --- //
         // time_tick = 10.0f;
@@ -134,26 +136,7 @@ static void Gap8Task(void *param)
             packet[6+i] = thing.bytes[i];
         }
 
-        // thing.a = acc_z;
-        // for(uint16_t i=0; i<4; i++)
-        // {
-        //     packet[10+i] = thing.bytes[i];
-        // }
-        // thing.a = gyro_x;
-        // for(uint16_t i=0; i<4; i++)
-        // {
-        //     packet[14+i] = thing.bytes[i];
-        // }
-        // thing.a = gyro_y;
-        // for(uint16_t i=0; i<4; i++)
-        // {
-        //     packet[18+i] = thing.bytes[i];
-        // }
-        // thing.a = gyro_z;
-        // for(uint16_t i=0; i<4; i++)
-        // {
-        //     packet[22+i] = thing.bytes[i];
-        // }
+
         uart1SendData(12, packet);          // 4 + 4 x n --> for only 2 floats, we have 12
         // vTaskDelay(M2T((rand()%10) + 20));
         vTaskDelay(M2T(40));
@@ -215,6 +198,8 @@ PARAM_GROUP_START(deck)
  */
 PARAM_ADD_CORE(PARAM_UINT8 | PARAM_RONLY, bcAIDeck, &isInit)
 
+
+PARAM_ADD_CORE(PARAM_UINT8, img_logging, &startLogging) /* use to start/stop logging*/
 PARAM_GROUP_STOP(deck)
 
 DECK_DRIVER(aideck_deck);
