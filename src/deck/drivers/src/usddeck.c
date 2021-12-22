@@ -78,7 +78,7 @@
 
 #else
 #include "deck_spi.h"
-#define USD_CS_PIN    DECK_GPIO_IO4
+#define USD_CS_PIN    DECK_GPIO_TX2  // DECK_GPIO_IO2
 
 #define SPI_BEGIN               spiBegin
 #define USD_SPI_BAUDRATE_2MHZ   SPI_BAUDRATE_2MHZ
@@ -1056,7 +1056,7 @@ static const DeckDriver usd_deck = {
     .vid = 0xBC,
     .pid = 0x08,
     .name = "bcUSD",
-    .usedGpio = DECK_USING_IO_4,
+    .usedGpio = DECK_USING_PA2,                    //  DECK_USING_IO_2,
     .usedPeriph = DECK_USING_SPI,
     .init = usdInit,
     .test = usdTest,
@@ -1104,4 +1104,5 @@ STATS_CNT_RATE_LOG_ADD(spiReBps, &spiReadRate)
  * @brief Data write rate to the SD card [bytes/s]
  */
 STATS_CNT_RATE_LOG_ADD(fatWrBps, &fatWriteRate)
+
 LOG_GROUP_STOP(usd)

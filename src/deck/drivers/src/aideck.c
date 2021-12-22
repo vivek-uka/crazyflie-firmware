@@ -108,7 +108,7 @@ static void Gap8Task(void *param)
         // uart1GetDataWithDefaultTimeout(&byte);
 
 
-        float height =  (float) startLogging;
+        float ai_log =  (float) startLogging;
 
         // get current os time tick
         uint32_t osTick = xTaskGetTickCount();   // 32 bits --> 4 bytes -- the same with "float"
@@ -124,22 +124,22 @@ static void Gap8Task(void *param)
         } thing;
 
         // thing.a = time_tick;                     // test
-        thing.a = osTick;                     // test
+        thing.a = osTick;                           // test
         for(uint16_t i=0; i<4; i++)
         {
             packet[2+i] = thing.bytes[i];
         }
 
-        thing.a = height;
+        thing.a = ai_log;
         for(uint16_t i=0; i<4; i++)
         {
             packet[6+i] = thing.bytes[i];
         }
 
 
-        uart1SendData(12, packet);          // 4 + 4 x n --> for only 2 floats, we have 12
+        uart1SendData(12, packet);             // 4 + 4 x n --> for only 2 floats, we have 12
         // vTaskDelay(M2T((rand()%10) + 20));
-        vTaskDelay(M2T(40));
+        vTaskDelay(M2T(40));                   // 40 ms --> smaller the better
     }
 }
 
