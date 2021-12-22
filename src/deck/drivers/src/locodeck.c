@@ -62,20 +62,27 @@
 
 // LOCO deck alternative IRQ and RESET pins(IO_2, IO_3) instead of default (RX1, TX1), leaving UART1 free for use
 #ifdef LOCODECK_USE_ALT_PINS
+  // [new]
   #define GPIO_PIN_IRQ 	  DECK_GPIO_IO2
+  #define GPIO_PIN_RESET 	DECK_GPIO_RX2
+  // #define GPIO_PIN_IRQ 	  DECK_GPIO_IO2
 
-  #ifndef LOCODECK_ALT_PIN_RESET
-  #define GPIO_PIN_RESET 	DECK_GPIO_IO3
-  #else
-  #define GPIO_PIN_RESET 	LOCODECK_ALT_PIN_RESET
-  #endif
+  // #ifndef LOCODECK_ALT_PIN_RESET
+  // #define GPIO_PIN_RESET 	DECK_GPIO_IO3
+  // #else
+  // #define GPIO_PIN_RESET 	LOCODECK_ALT_PIN_RESET
+  // #endif
 
   #define EXTI_PortSource EXTI_PortSourceGPIOB
   #define EXTI_PinSource 	EXTI_PinSource5
   #define EXTI_LineN 		  EXTI_Line5
 #else
+  // to use ai-deck, flow-deck and sd-card together
+  // original
   #define GPIO_PIN_IRQ 	  DECK_GPIO_RX1
   #define GPIO_PIN_RESET 	DECK_GPIO_TX1
+
+
   #define EXTI_PortSource EXTI_PortSourceGPIOC
   #define EXTI_PinSource 	EXTI_PinSource11
   #define EXTI_LineN 		  EXTI_Line11
@@ -568,11 +575,14 @@ static const DeckDriver dwm1000_deck = {
   .pid = 0x06,
   .name = "bcDWM1000",
 
-#ifdef LOCODEC_USE_ALT_PINS
-  .usedGpio = DECK_USING_IO_1 | DECK_USING_IO_2 | DECK_USING_IO_3,
+#ifdef LOCODECK_USE_ALT_PINS
+  // .usedGpio = DECK_USING_IO_1 | DECK_USING_IO_2 | DECK_USING_IO_3,
+     // [new]
+  .usedGpio = DECK_USING_IO_1 | DECK_USING_IO_2 | DECK_USING_PA3,
 #else
-   // (PC10/PC11 is UART1 TX/RX)
+   // (PC10/PC11 is UART1 TX/RX)  original
   .usedGpio = DECK_USING_IO_1 | DECK_USING_PC10 | DECK_USING_PC11,
+
 #endif
   .usedPeriph = DECK_USING_SPI,
   .requiredEstimator = kalmanEstimator,

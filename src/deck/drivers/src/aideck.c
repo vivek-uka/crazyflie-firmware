@@ -124,7 +124,7 @@ static void Gap8Task(void *param)
         } thing;
 
         // thing.a = time_tick;                     // test
-        thing.a = osTick;                     // test
+        thing.a = osTick;                           // test
         for(uint16_t i=0; i<4; i++)
         {
             packet[2+i] = thing.bytes[i];
@@ -137,9 +137,9 @@ static void Gap8Task(void *param)
         }
 
 
-        uart1SendData(12, packet);          // 4 + 4 x n --> for only 2 floats, we have 12
+        uart1SendData(12, packet);             // 4 + 4 x n --> for only 2 floats, we have 12
         // vTaskDelay(M2T((rand()%10) + 20));
-        vTaskDelay(M2T(40));
+        vTaskDelay(M2T(40));                   // 40 ms --> smaller the better
     }
 }
 
