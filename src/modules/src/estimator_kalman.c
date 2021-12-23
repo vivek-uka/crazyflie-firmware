@@ -209,7 +209,7 @@ static void kalmanTask(void* parameters) {
   uint32_t nextPrediction = xTaskGetTickCount();
   uint32_t lastPNUpdate = xTaskGetTickCount();
 
-  rateSupervisorInit(&rateSupervisorContext, xTaskGetTickCount(), ONE_SECOND, PREDICT_RATE - 1, PREDICT_RATE + 1, 1);
+  rateSupervisorInit(&rateSupervisorContext, xTaskGetTickCount(), ONE_SECOND, PREDICT_RATE - 3, PREDICT_RATE + 1, 1);
 
   while (true) {
     xSemaphoreTake(runTaskSemaphore, portMAX_DELAY);

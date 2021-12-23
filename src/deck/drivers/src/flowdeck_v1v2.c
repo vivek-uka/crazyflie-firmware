@@ -87,7 +87,7 @@ static void flowdeckTask(void *param)
 
   uint64_t lastTime  = usecTimestamp();
   while(1) {
-    vTaskDelay(10);
+    vTaskDelay(40);        // increase the sleep time in the flow deck to relieve the onboard burden
 
     pmw3901ReadMotion(NCS_PIN, &currentMotion);
 

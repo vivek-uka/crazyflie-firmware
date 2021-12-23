@@ -139,7 +139,7 @@ static void Gap8Task(void *param)
 
         uart1SendData(12, packet);             // 4 + 4 x n --> for only 2 floats, we have 12
         // vTaskDelay(M2T((rand()%10) + 20));
-        vTaskDelay(M2T(40));                   // 40 ms --> smaller the better
+        vTaskDelay(M2T(20));                   // 20ms(50 hz)  original: 40 ms (25 hz) --> smaller the better
     }
 }
 
